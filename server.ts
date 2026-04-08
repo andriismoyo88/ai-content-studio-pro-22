@@ -1,4 +1,5 @@
 import express from "express";
+import cors from "cors";
 import path from "path";
 import os from "os";
 import fs from "fs";
@@ -14,6 +15,13 @@ import ffmpegPath from "ffmpeg-static";
 import ffprobePath from "ffprobe-static";
 import ytdl from "ytdl-core";
 import contentDisposition from "content-disposition";
+import dotenv from "dotenv";
+
+// Load environment variables
+dotenv.config();
+
+// Debug mode
+const DEBUG = process.env.DEBUG === 'true';
 
 // Configure FFmpeg paths
 console.log("[System] ffmpegPath type:", typeof ffmpegPath, ffmpegPath);
@@ -786,10 +794,25 @@ async function callAIProvider(prompt: string, provider: string, keys: string[]) 
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT || 3000;
+
+  // CORS Configuration
+  app.use(cors({
+    origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+  }));
 
   app.use(express.json({ limit: '5000mb' }));
   app.use(express.urlencoded({ limit: '5000mb', extended: true }));
+
+  // Request Logging in Debug Mode
+  if (DEBUG) {
+    app.use((req, res, next) => {
+      console.log(`[Debug] ${req.method} ${req.url}`);
+      next();
+    });
+  }
 
   // --- End AI Intelligence Endpoints ---
 
@@ -1386,8 +1409,20 @@ async function startServer() {
     });
   }
 
-  const server = app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+  const server = app.listen(Number(PORT), "0.0.0.0", () => {
+    console.log(`[System] Server running on http://0.0.0.0:${PORT}`);
+    console.log(`[System] Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`[System] Debug Mode: ${DEBUG}`);
+  });
+
+  // Global Error Handler
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error("[Fatal Error]", err);
+    res.status(500).json({
+      error: "Internal Server Error",
+      message: DEBUG ? err.message : "An unexpected error occurred",
+      stack: DEBUG ? err.stack : undefined
+    });
   });
 
   // Set timeout to 0 (no timeout) to allow large file uploads/downloads

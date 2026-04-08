@@ -1,0 +1,37 @@
+server {
+    listen 80;
+    server_name your-domain.com; # Ganti dengan domain atau IP VPS Anda
+
+    # Frontend Static Files
+    location / {
+        root /var/www/youtube-automation/dist; # Ganti dengan path folder dist Anda
+        index index.html;
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Backend API Proxy
+    location /api {
+        proxy_pass http://localhost:3000; # Ganti port jika berbeda
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Increase timeouts for large file uploads
+        client_max_body_size 5000M;
+        proxy_connect_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_read_timeout 3600s;
+    }
+
+    # Media Storage Access (Optional, if not served via API)
+    location /storage {
+        alias /var/www/youtube-automation/storage;
+        expires 30d;
+        add_header Cache-Control "public, no-transform";
+    }
+}
