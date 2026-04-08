@@ -57,30 +57,20 @@ const BASE_DIR = process.cwd();
 const STORAGE_DIR = path.join(BASE_DIR, 'storage');
 const VIDEOS_DIR = path.join(STORAGE_DIR, 'videos');
 const THUMBNAILS_DIR = path.join(STORAGE_DIR, 'thumbnails');
+const UPLOADS_DIR = path.join(BASE_DIR, 'uploads');
 
-console.log("[System] Base directory for storage:", BASE_DIR);
-
-[STORAGE_DIR, VIDEOS_DIR, THUMBNAILS_DIR].forEach(dir => {
+[STORAGE_DIR, VIDEOS_DIR, THUMBNAILS_DIR, UPLOADS_DIR].forEach(dir => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+    console.log(`[System] Created directory: ${dir}`);
+  }
+  // Ensure permissions are correct (775)
   try {
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-      console.log("[System] Created directory:", dir);
-    }
-  } catch (err) {
-    console.error(`[System] Failed to create directory ${dir}:`, err);
+    fs.chmodSync(dir, 0o775);
+  } catch (e) {
+    console.warn(`[System] Could not set permissions for ${dir}:`, e.message);
   }
 });
-
-// Ensure uploads directory exists
-const UPLOADS_DIR = path.join(BASE_DIR, 'uploads');
-try {
-  if (!fs.existsSync(UPLOADS_DIR)) {
-    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-    console.log("[System] Created uploads directory:", UPLOADS_DIR);
-  }
-} catch (err) {
-  console.error(`[System] Failed to create uploads directory ${UPLOADS_DIR}:`, err);
-}
 
 // Configure Multer for local storage
 const storage = multer.diskStorage({
@@ -94,6 +84,25 @@ const upload = multer({ storage });
 
 // Encryption key for tokens (In production, use a secure env var)
 const ENCRYPTION_KEY = process.env.TOKEN_ENCRYPTION_KEY || "super-secret-key";
+
+// Helper: Resolve relative public paths to absolute filesystem paths
+function resolvePath(p: string): string {
+  if (!p) return p;
+  if (path.isAbsolute(p)) return p;
+  
+  // If it's a public URL path
+  if (p.startsWith('/uploads/')) {
+    return path.join(UPLOADS_DIR, path.basename(p));
+  }
+  if (p.startsWith('/storage/')) {
+    // storage/videos or storage/thumbnails
+    const parts = p.split('/');
+    return path.join(STORAGE_DIR, ...parts.slice(2));
+  }
+  
+  // Fallback to joining with BASE_DIR if it's a relative path
+  return path.join(BASE_DIR, p);
+}
 
 // Helper: Get Authorized YouTube Client with Auto-Refresh
 async function getYouTubeClient(channelId: string) {
@@ -291,7 +300,10 @@ async function processMedia(mediaId: string, url?: string, source?: string) {
             method: 'get',
             url: downloadUrl,
             responseType: 'stream',
-            timeout: 0 // No timeout for large file downloads
+            timeout: 0, // No timeout for large file downloads
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
           });
 
           const totalSize = parseInt(response.headers['content-length'] || '0');
@@ -301,8 +313,15 @@ async function processMedia(mediaId: string, url?: string, source?: string) {
           
           response.data.on('data', (chunk: any) => {
             downloaded += chunk.length;
-            if (totalSize) {
-              media.progress = Math.round((downloaded / totalSize) * 80); // 80% for download
+            if (totalSize > 0) {
+              const newProgress = Math.round((downloaded / totalSize) * 80);
+              if (newProgress !== media.progress) {
+                media.progress = newProgress;
+                saveDb();
+              }
+            } else {
+              // If no content-length, just show activity
+              media.progress = Math.min(79, (media.progress || 0) + 1);
               saveDb();
             }
           });
@@ -449,9 +468,17 @@ async function processJob(job: any) {
     return;
   }
 
+  const absoluteVideoPath = resolvePath(data.videoPath);
+  const absoluteThumbnailPath = data.thumbnailPath ? resolvePath(data.thumbnailPath) : null;
+
   console.log(`[Job ${job.id}] Processing started for: ${data.title}`);
+  console.log(`[Job ${job.id}] Video Path: ${absoluteVideoPath}`);
   
   try {
+    if (!fs.existsSync(absoluteVideoPath)) {
+      throw new Error(`Video file not found at: ${absoluteVideoPath}`);
+    }
+
     job.progress = 10;
     saveDb();
     // status is already 'processing'
@@ -482,16 +509,17 @@ async function processJob(job: any) {
         } as any,
       },
       media: {
-        body: fs.createReadStream(data.videoPath),
+        body: fs.createReadStream(absoluteVideoPath),
       },
     }, {
       // Monitor upload progress
       onUploadProgress: (evt) => {
         try {
-          if (!fs.existsSync(data.videoPath)) return;
-          const stats = fs.statSync(data.videoPath);
+          if (!fs.existsSync(absoluteVideoPath)) return;
+          const stats = fs.statSync(absoluteVideoPath);
           const progress = Math.round((evt.bytesRead / stats.size) * 100);
           job.progress = Math.min(progress, 90); // Reserve last 10% for processing
+          saveDb();
         } catch (e) {
           console.warn(`[Job ${job.id}] Progress monitoring failed:`, e);
         }
@@ -507,17 +535,17 @@ async function processJob(job: any) {
     saveDb();
 
     // 2. Set Thumbnail if provided
-    if (data.thumbnailPath && fs.existsSync(data.thumbnailPath)) {
+    if (absoluteThumbnailPath && fs.existsSync(absoluteThumbnailPath)) {
       try {
-        let finalThumbnailPath = data.thumbnailPath;
-        const stats = fs.statSync(data.thumbnailPath);
+        let finalThumbnailPath = absoluteThumbnailPath;
+        const stats = fs.statSync(absoluteThumbnailPath);
         const MAX_THUMBNAIL_SIZE = 2 * 1024 * 1024; // 2MB
 
         if (stats.size > MAX_THUMBNAIL_SIZE) {
           console.log(`[Job ${job.id}] Thumbnail too large (${stats.size} bytes). Resizing...`);
-          const resizedPath = data.thumbnailPath + ".resized.jpg";
+          const resizedPath = absoluteThumbnailPath + ".resized.jpg";
           const sharp = (await import("sharp")).default;
-          await sharp(data.thumbnailPath)
+          await sharp(absoluteThumbnailPath)
             .resize(1280, 720, { fit: 'inside' })
             .jpeg({ quality: 80 })
             .toFile(resizedPath);
@@ -535,7 +563,7 @@ async function processJob(job: any) {
         console.log(`[Job ${job.id}] Thumbnail uploaded.`);
         
         // Clean up resized thumbnail if it was created
-        if (finalThumbnailPath !== data.thumbnailPath) {
+        if (finalThumbnailPath !== absoluteThumbnailPath) {
           fs.unlinkSync(finalThumbnailPath);
         }
       } catch (thumbError: any) {
@@ -1014,12 +1042,16 @@ async function startServer() {
     const response: any = {};
     
     if (files.video) {
-      response.videoPath = files.video[0].path;
+      // Return relative URL for frontend
+      response.videoPath = `/uploads/${path.basename(files.video[0].path)}`;
       response.videoName = files.video[0].originalname;
+      console.log(`[Upload] Video uploaded: ${response.videoPath}`);
     }
     if (files.thumbnail) {
-      response.thumbnailPath = files.thumbnail[0].path;
+      // Return relative URL for frontend
+      response.thumbnailPath = `/uploads/${path.basename(files.thumbnail[0].path)}`;
       response.thumbnailName = files.thumbnail[0].originalname;
+      console.log(`[Upload] Thumbnail uploaded: ${response.thumbnailPath}`);
     }
     
     res.json(response);
@@ -1404,6 +1436,11 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
+    
+    // Serve uploads and storage as static folders in production
+    app.use('/uploads', express.static(UPLOADS_DIR));
+    app.use('/storage', express.static(STORAGE_DIR));
+
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });

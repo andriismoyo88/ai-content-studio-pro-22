@@ -2,16 +2,20 @@
   "apps": [
     {
       "name": "youtube-automation",
-      "script": "npm",
-      "args": "start",
+      "script": "tsx",
+      "args": "server.ts",
       "env": {
         "NODE_ENV": "production",
-        "PORT": 3000
+        "PORT": 3000,
+        "DEBUG": "true"
       },
-      "max_memory_restart": "2G",
+      "max_memory_restart": "4G",
       "error_file": "logs/err.log",
       "out_file": "logs/out.log",
-      "log_date_format": "YYYY-MM-DD HH:mm:ss"
+      "log_date_format": "YYYY-MM-DD HH:mm:ss",
+      "merge_logs": true,
+      "autorestart": true,
+      "watch": false
     }
   ]
 }
