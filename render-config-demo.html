@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Studio - Render Configuration</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #020617;
+            color: #f8fafc;
+        }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .custom-shadow { box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4 md:p-8">
+
+    <div class="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-[2.5rem] p-8 md:p-12 custom-shadow">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-10">
+            <div>
+                <h1 class="text-2xl font-extrabold tracking-tight text-white">Render Configuration</h1>
+                <p class="text-slate-500 text-sm mt-1">Video Studio Engine v2.4 Stable</p>
+            </div>
+            <div class="px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-[10px] font-black text-emerald-400 uppercase tracking-widest">
+                GPU Accelerated
+            </div>
+        </div>
+
+        <div class="space-y-8">
+            <!-- Mode & Accelerator -->
+            <div class="grid grid-cols-2 gap-6">
+                <div class="space-y-2">
+                    <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Mode</label>
+                    <div class="w-full py-4 px-5 bg-slate-950 border border-slate-800 rounded-2xl text-sm font-bold text-blue-400 flex items-center gap-3">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        REGULAR
+                    </div>
+                </div>
+                <div class="space-y-2">
+                    <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Accelerator Engine</label>
+                    <div class="w-full py-4 px-5 bg-slate-950 border border-slate-800 rounded-2xl text-sm font-bold text-emerald-400 flex items-center gap-3">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
+                        GPU (NVENC)
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loop & Duration -->
+            <div class="p-6 bg-slate-950 border border-slate-800 rounded-3xl space-y-6">
+                <div class="flex items-center justify-between">
+                    <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Loop Target</label>
+                    <div class="flex bg-slate-900 p-1 rounded-xl border border-slate-800">
+                        <button id="btnDurasi" onclick="setLoopTarget('DURASI')" class="px-6 py-2 rounded-lg text-[10px] font-black transition-all bg-blue-600 text-white shadow-lg">DURASI</button>
+                        <button id="btnLoop" onclick="setLoopTarget('LOOP')" class="px-6 py-2 rounded-lg text-[10px] font-black transition-all text-slate-500 hover:text-slate-300">LOOP</button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="space-y-2">
+                        <span class="text-[9px] text-slate-600 font-bold uppercase block text-center">Jam</span>
+                        <input type="number" id="inputHH" value="0" min="0" oninput="updateSize()" class="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 text-center text-xl font-mono text-white focus:border-blue-500 outline-none transition-all">
+                    </div>
+                    <div class="space-y-2">
+                        <span class="text-[9px] text-slate-600 font-bold uppercase block text-center">Menit</span>
+                        <input type="number" id="inputMM" value="0" min="0" max="59" oninput="updateSize()" class="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 text-center text-xl font-mono text-white focus:border-blue-500 outline-none transition-all">
+                    </div>
+                    <div class="space-y-2">
+                        <span class="text-[9px] text-slate-600 font-bold uppercase block text-center">Detik</span>
+                        <input type="number" id="inputSS" value="10" min="0" max="59" oninput="updateSize()" class="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 text-center text-xl font-mono text-white focus:border-blue-500 outline-none transition-all">
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center pt-4 border-t border-slate-800/50">
+                    <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Durasi Akhir</span>
+                    <span id="displayDuration" class="text-sm font-black text-blue-400 font-mono tracking-wider">00:00:10</span>
+                </div>
+            </div>
+
+            <!-- Encoding Settings -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="space-y-6">
+                    <div class="space-y-3">
+                        <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Output Resolution</label>
+                        <select id="selectRes" onchange="updateSize()" class="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-sm font-bold text-slate-200 outline-none focus:border-emerald-500 transition-all appearance-none">
+                            <option value="1080p">1080p (Full HD)</option>
+                            <option value="720p">720p (HD)</option>
+                            <option value="4k">4K (Ultra HD)</option>
+                        </select>
+                    </div>
+                    <div class="space-y-3">
+                        <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Video Bitrate (CBR)</label>
+                        <div class="relative">
+                            <input type="number" id="inputVideoBitrate" value="4.5" step="0.1" oninput="updateSize()" class="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-sm font-bold text-slate-200 outline-none focus:border-emerald-500 transition-all">
+                            <span class="absolute right-5 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-600">Mbps</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-6">
+                    <div class="space-y-3">
+                        <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Keyframe Distance</label>
+                        <div class="relative">
+                            <input type="number" id="inputKeyframe" value="2.0" step="0.1" class="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-sm font-bold text-slate-200 outline-none focus:border-emerald-500 transition-all">
+                            <span class="absolute right-5 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-600">s</span>
+                        </div>
+                    </div>
+                    <div class="space-y-3">
+                        <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Audio Bitrate</label>
+                        <select id="selectAudioBitrate" onchange="updateSize()" class="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-sm font-bold text-slate-200 outline-none focus:border-emerald-500 transition-all appearance-none">
+                            <option value="128">128 kbps</option>
+                            <option value="192" selected>192 kbps</option>
+                            <option value="256">256 kbps</option>
+                            <option value="320">320 kbps</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rendering Power & Output -->
+            <div class="pt-8 border-t border-slate-800 space-y-8">
+                <div class="flex items-center justify-between p-5 bg-emerald-500/5 border border-emerald-500/10 rounded-3xl">
+                    <div class="flex items-center gap-4">
+                        <div class="p-3 bg-emerald-500/20 rounded-xl text-emerald-400">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        </div>
+                        <div>
+                            <p class="text-xs font-black text-emerald-400 uppercase tracking-widest">Rendering Power</p>
+                            <p class="text-[10px] text-emerald-500/60 font-medium">V-COPY Engine Active</p>
+                        </div>
+                    </div>
+                    <div class="w-14 h-7 bg-emerald-600 rounded-full p-1 cursor-pointer shadow-lg shadow-emerald-600/20">
+                        <div class="w-5 h-5 bg-white rounded-full ml-auto"></div>
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Rename Output</label>
+                    <input type="text" id="inputOutputName" value="VIDEO_MASTER" class="w-full bg-slate-950 border border-slate-800 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none focus:border-blue-500 transition-all">
+                </div>
+
+                <div class="space-y-4">
+                    <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Export Directory</label>
+                    <div class="flex gap-4">
+                        <input type="text" id="inputPath" readonly class="flex-1 bg-slate-950 border border-slate-800 rounded-2xl px-6 py-4 text-[10px] font-bold text-slate-500 outline-none truncate" placeholder="Click Browse to select destination...">
+                        <button onclick="browseDirectory()" class="px-8 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl transition-all text-[10px] font-black uppercase tracking-widest border border-slate-700">Browse</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Size Estimation & Action -->
+            <div class="pt-10 space-y-8">
+                <div class="flex items-center justify-between p-8 bg-slate-950 border border-slate-800 rounded-[2rem] shadow-inner">
+                    <div class="space-y-2">
+                        <p class="text-[10px] font-black text-slate-600 uppercase tracking-widest">Size Estimation</p>
+                        <div class="flex items-baseline gap-2">
+                            <span id="displaySize" class="text-5xl font-black text-white font-mono">5.87</span>
+                            <span class="text-sm font-black text-slate-500">MB</span>
+                        </div>
+                    </div>
+                    <div class="p-6 bg-blue-500/10 rounded-3xl border border-blue-500/20 text-blue-400">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/></svg>
+                    </div>
+                </div>
+
+                <div class="space-y-6">
+                    <button id="btnStart" onclick="startExport()" class="w-full py-6 bg-gradient-to-br from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white font-black rounded-3xl shadow-2xl shadow-blue-600/40 flex items-center justify-center gap-4 transition-all uppercase tracking-widest text-sm">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        START EXPORT
+                    </button>
+
+                    <!-- Progress Bar -->
+                    <div id="progressContainer" class="hidden space-y-4">
+                        <div class="flex justify-between items-center">
+                            <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Export Progress</span>
+                            <span id="progressText" class="text-xs font-black text-blue-400 font-mono">0%</span>
+                        </div>
+                        <div class="h-4 bg-slate-950 rounded-full border border-slate-800 p-1 overflow-hidden">
+                            <div id="progressBar" class="h-full w-0 bg-gradient-to-r from-blue-500 via-indigo-500 to-emerald-500 rounded-full transition-all duration-100 shadow-[0_0_20px_rgba(59,130,246,0.5)]"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let loopTarget = 'DURASI';
+        let isExporting = false;
+
+        function setLoopTarget(target) {
+            loopTarget = target;
+            const btnD = document.getElementById('btnDurasi');
+            const btnL = document.getElementById('btnLoop');
+            
+            if(target === 'DURASI') {
+                btnD.className = "px-6 py-2 rounded-lg text-[10px] font-black transition-all bg-blue-600 text-white shadow-lg";
+                btnL.className = "px-6 py-2 rounded-lg text-[10px] font-black transition-all text-slate-500 hover:text-slate-300";
+            } else {
+                btnL.className = "px-6 py-2 rounded-lg text-[10px] font-black transition-all bg-blue-600 text-white shadow-lg";
+                btnD.className = "px-6 py-2 rounded-lg text-[10px] font-black transition-all text-slate-500 hover:text-slate-300";
+            }
+        }
+
+        function updateSize() {
+            const hh = parseInt(document.getElementById('inputHH').value) || 0;
+            const mm = parseInt(document.getElementById('inputMM').value) || 0;
+            const ss = parseInt(document.getElementById('inputSS').value) || 0;
+            
+            const totalSeconds = (hh * 3600) + (mm * 60) + ss;
+            
+            // Display formatted duration
+            document.getElementById('displayDuration').innerText = 
+                `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+
+            const videoBitrate = parseFloat(document.getElementById('inputVideoBitrate').value) || 0;
+            const audioBitrate = parseInt(document.getElementById('selectAudioBitrate').value) || 0;
+
+            // Formula: Size (MB) = (Video Bitrate + Audio Bitrate) × Durasi (detik) / 8
+            // Video Bitrate is in Mbps, Audio in kbps (convert to Mbps)
+            const totalBitrateMbps = videoBitrate + (audioBitrate / 1000);
+            const sizeMB = (totalBitrateMbps * totalSeconds) / 8;
+
+            document.getElementById('displaySize').innerText = sizeMB.toFixed(2);
+        }
+
+        async function browseDirectory() {
+            try {
+                if ('showSaveFilePicker' in window) {
+                    const handle = await window.showSaveFilePicker({
+                        suggestedName: document.getElementById('inputOutputName').value + '.mp4',
+                        types: [{
+                            description: 'Video File',
+                            accept: {'video/mp4': ['.mp4']},
+                        }],
+                    });
+                    document.getElementById('inputPath').value = handle.name;
+                } else {
+                    // Fallback
+                    document.getElementById('inputPath').value = "C:/Users/Downloads/AI_Studio_Exports/" + document.getElementById('inputOutputName').value + ".mp4";
+                }
+            } catch (err) {
+                console.log("User cancelled picker");
+            }
+        }
+
+        function startExport() {
+            if(isExporting) return;
+
+            const hh = parseInt(document.getElementById('inputHH').value) || 0;
+            const mm = parseInt(document.getElementById('inputMM').value) || 0;
+            const ss = parseInt(document.getElementById('inputSS').value) || 0;
+            const totalSeconds = (hh * 3600) + (mm * 60) + ss;
+            const path = document.getElementById('inputPath').value;
+            const name = document.getElementById('inputOutputName').value;
+
+            // Validations
+            if(totalSeconds <= 0) {
+                alert("Durasi tidak boleh 0!");
+                return;
+            }
+            if(!path) {
+                alert("Export path wajib dipilih!");
+                return;
+            }
+            if(!name.trim()) {
+                alert("Nama file tidak boleh kosong!");
+                return;
+            }
+
+            isExporting = true;
+            const btn = document.getElementById('btnStart');
+            const progressContainer = document.getElementById('progressContainer');
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+
+            btn.disabled = true;
+            btn.innerText = "PROCESSING...";
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+            progressContainer.classList.remove('hidden');
+
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += 2;
+                progressBar.style.width = progress + '%';
+                progressText.innerText = progress + '%';
+
+                if(progress >= 100) {
+                    clearInterval(interval);
+                    
+                    // Final JSON Output
+                    const config = {
+                        mode: "regular",
+                        duration: `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`,
+                        resolution: document.getElementById('selectRes').value,
+                        video_bitrate: document.getElementById('inputVideoBitrate').value + " Mbps",
+                        audio_bitrate: document.getElementById('selectAudioBitrate').value + " kbps",
+                        encoder: "NVENC",
+                        keyframe: document.getElementById('inputKeyframe').value,
+                        render_mode: "v-copy",
+                        output_name: name,
+                        export_path: path
+                    };
+
+                    console.log("EXPORT SUCCESSFUL:", config);
+                    alert("Export Berhasil! Cek console untuk detail JSON.");
+                    
+                    isExporting = false;
+                    btn.disabled = false;
+                    btn.innerText = "START EXPORT";
+                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                }
+            }, 50);
+        }
+
+        // Initial calculation
+        updateSize();
+    </script>
+</body>
+</html>

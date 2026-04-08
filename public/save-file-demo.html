@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Save Picker Demo</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card: #1e293b;
+            --text: #f1f5f9;
+            --primary: #3b82f6;
+            --border: #334155;
+            --success: #10b981;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .card {
+            background-color: var(--card);
+            padding: 2.5rem;
+            border-radius: 1rem;
+            border: 1px solid var(--border);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 450px;
+        }
+
+        h1 {
+            margin-top: 0;
+            font-size: 1.25rem;
+            color: var(--primary);
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+            color: #94a3b8;
+        }
+
+        .input-container {
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        input {
+            flex: 1;
+            background-color: #0f172a;
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            color: white;
+            font-size: 0.875rem;
+            outline: none;
+            cursor: default;
+        }
+
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+            white-space: nowrap;
+        }
+
+        button:hover {
+            background-color: #2563eb;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        .status {
+            margin-top: 1rem;
+            font-size: 0.75rem;
+            text-align: center;
+            min-height: 1.2em;
+        }
+
+        .status.success { color: var(--success); }
+        .status.error { color: #ef4444; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h1>Export File Demo</h1>
+    
+    <div class="form-group">
+        <label for="fileNameDisplay">Saved File Name</label>
+        <div class="input-container">
+            <input type="text" id="fileNameDisplay" placeholder="No file saved yet..." readonly>
+            <button id="btnBrowse">Browse</button>
+        </div>
+    </div>
+
+    <div id="statusMsg" class="status"></div>
+</div>
+
+<script>
+    const btnBrowse = document.getElementById('btnBrowse');
+    const fileNameDisplay = document.getElementById('fileNameDisplay');
+    const statusMsg = document.getElementById('statusMsg');
+
+    /**
+     * Fungsi utama untuk menangani pemilihan lokasi dan penyimpanan file
+     */
+    async function handleFileSave() {
+        // Reset status
+        statusMsg.textContent = '';
+        statusMsg.className = 'status';
+
+        try {
+            // 1. Membuka dialog "Save As" menggunakan File System Access API
+            // showSaveFilePicker mengembalikan handle ke file yang dipilih user
+            const fileHandle = await window.showSaveFilePicker({
+                suggestedName: 'export_data.json',
+                types: [
+                    {
+                        description: 'JSON File',
+                        accept: { 'application/json': ['.json'] },
+                    },
+                    {
+                        description: 'Text File',
+                        accept: { 'text/plain': ['.txt'] },
+                    },
+                    {
+                        description: 'Video File',
+                        accept: { 'video/mp4': ['.mp4'] },
+                    }
+                ],
+            });
+
+            // 2. Menyiapkan data untuk disimpan (Contoh: JSON)
+            const content = {
+                message: "Hello from AI Content Studio!",
+                timestamp: new Date().toISOString(),
+                status: "Success"
+            };
+            const blob = new Blob([JSON.stringify(content, null, 2)], { type: 'application/json' });
+
+            // 3. Menulis data ke file menggunakan writable stream
+            const writable = await fileHandle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+
+            // 4. Konfirmasi keberhasilan
+            fileNameDisplay.value = fileHandle.name;
+            statusMsg.textContent = 'File successfully saved!';
+            statusMsg.classList.add('success');
+
+        } catch (err) {
+            // 5. Error handling (termasuk jika user membatalkan/cancel)
+            if (err.name === 'AbortError') {
+                statusMsg.textContent = 'Save cancelled by user.';
+                statusMsg.classList.add('error');
+            } else {
+                console.error('Error saving file:', err);
+                statusMsg.textContent = 'Error: ' + err.message;
+                statusMsg.classList.add('error');
+            }
+        }
+    }
+
+    // Event listener untuk tombol Browse
+    btnBrowse.addEventListener('click', handleFileSave);
+</script>
+
+</body>
+</html>

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Export Location Feature Demo</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card: #1e293b;
+            --text: #f1f5f9;
+            --primary: #3b82f6;
+            --secondary: #10b981;
+            --border: #334155;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            background-color: var(--card);
+            padding: 2rem;
+            border-radius: 1rem;
+            border: 1px border var(--border);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            max-width: 500px;
+        }
+
+        h2 {
+            margin-top: 0;
+            font-size: 1.5rem;
+            color: var(--primary);
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+            color: #94a3b8;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        input {
+            flex: 1;
+            background-color: #0f172a;
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            color: white;
+            font-size: 0.875rem;
+            outline: none;
+        }
+
+        input:focus {
+            border-color: var(--primary);
+        }
+
+        button {
+            cursor: pointer;
+            border: none;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .btn-browse {
+            background-color: var(--border);
+            color: white;
+        }
+
+        .btn-browse:hover {
+            background-color: #475569;
+        }
+
+        .btn-export {
+            width: 100%;
+            background-color: var(--secondary);
+            color: white;
+            font-size: 1rem;
+        }
+
+        .btn-export:hover {
+            background-color: #059669;
+            transform: translateY(-1px);
+        }
+
+        .btn-export:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status {
+            margin-top: 1rem;
+            font-size: 0.75rem;
+            text-align: center;
+        }
+
+        .success { color: var(--secondary); }
+        .error { color: #ef4444; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Export Settings</h2>
+    
+    <div class="form-group">
+        <label for="exportLocation">Export Location</label>
+        <div class="input-group">
+            <input type="text" id="exportLocation" placeholder="No folder selected..." readonly>
+            <button id="btnBrowse" class="btn-browse">Browse</button>
+        </div>
+    </div>
+
+    <button id="btnExport" class="btn-export" disabled>Export Now</button>
+    
+    <div id="statusMsg" class="status"></div>
+</div>
+
+<script>
+    // State variables
+    let directoryHandle = null;
+
+    const exportInput = document.getElementById('exportLocation');
+    const btnBrowse = document.getElementById('btnBrowse');
+    const btnExport = document.getElementById('btnExport');
+    const statusMsg = document.getElementById('statusMsg');
+
+    // 1. Handle Folder Selection (Browse)
+    btnBrowse.addEventListener('click', async () => {
+        try {
+            // Membuka dialog pemilihan folder (Directory Picker)
+            // Hanya tersedia di browser modern (Chrome/Edge) dan konteks aman (HTTPS)
+            directoryHandle = await window.showDirectoryPicker();
+            
+            // Menampilkan nama folder di input field
+            exportInput.value = directoryHandle.name;
+            
+            // Mengaktifkan tombol export
+            btnExport.disabled = false;
+            
+            showStatus('Folder selected: ' + directoryHandle.name, 'success');
+        } catch (err) {
+            // User membatalkan atau terjadi error
+            console.error('Directory selection failed:', err);
+            if (err.name !== 'AbortError') {
+                showStatus('Error selecting folder: ' + err.message, 'error');
+            }
+        }
+    });
+
+    // 2. Handle File Export (Export Now)
+    btnExport.addEventListener('click', async () => {
+        if (!directoryHandle) return;
+
+        try {
+            statusMsg.textContent = 'Exporting...';
+            
+            // Membuat file baru di dalam folder yang dipilih
+            const fileName = `export_data_${Date.now()}.json`;
+            const fileHandle = await directoryHandle.getFileHandle(fileName, { create: true });
+            
+            // Membuat stream untuk menulis data
+            const writable = await fileHandle.createWritable();
+            
+            // Contoh data yang akan disimpan
+            const data = {
+                title: "AI Content Studio Export",
+                date: new Date().toLocaleString(),
+                status: "Success",
+                content: "This is a sample export file using File System Access API."
+            };
+
+            // Menulis data ke file
+            await writable.write(JSON.stringify(data, null, 2));
+            
+            // Menutup stream (penting!)
+            await writable.close();
+            
+            showStatus(`Successfully exported: ${fileName}`, 'success');
+        } catch (err) {
+            console.error('Export failed:', err);
+            showStatus('Export failed: ' + err.message, 'error');
+        }
+    });
+
+    function showStatus(msg, type) {
+        statusMsg.textContent = msg;
+        statusMsg.className = 'status ' + type;
+    }
+</script>
+
+</body>
+</html>

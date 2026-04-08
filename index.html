@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My Google AI Studio App</title>
+    <script>
+      // Fix for FFmpeg.wasm/dependencies trying to overwrite window.fetch
+      // In some environments (like AI Studio preview), window.fetch is read-only or a getter-only property.
+      // This block attempts to intercept assignments to window.fetch to prevent a crash.
+      (function() {
+        try {
+          const originalFetch = window.fetch;
+          if (!originalFetch) return;
+
+          // Check if we can redefine it
+          let descriptor = Object.getOwnPropertyDescriptor(window, 'fetch');
+          if (!descriptor) {
+            descriptor = Object.getOwnPropertyDescriptor(Window.prototype, 'fetch');
+          }
+
+          if (descriptor && !descriptor.configurable) {
+            console.warn('window.fetch is not configurable, skipping protection.');
+            return;
+          }
+
+          Object.defineProperty(window, 'fetch', {
+            get: () => originalFetch,
+            set: (newValue) => {
+              console.warn('A library tried to overwrite window.fetch. This attempt was ignored to prevent a TypeError.', newValue);
+            },
+            configurable: true,
+            enumerable: true
+          });
+        } catch (e) {
+          console.error('Failed to protect window.fetch:', e);
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

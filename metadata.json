@@ -1,0 +1,8 @@
+{
+  "name": "Remix: ai content studio pro 20",
+  "description": "Professional automated content creation and YouTube management platform.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
