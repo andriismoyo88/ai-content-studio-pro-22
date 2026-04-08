@@ -1,5 +1,6 @@
-import { useState, useEffect, Dispatch, SetStateAction } from "react";
+import { useState, useEffect, Dispatch, SetStateAction, useCallback } from "react";
 import JSZip from "jszip";
+import axios from "axios";
 import { GoogleGenAI } from "@google/genai";
 import { AssetType, Duration, GeneratedAsset, GlobalConfig, StoryboardScene, RoleModelAI } from "../types";
 import { 
@@ -13,7 +14,8 @@ import {
   LayoutGrid,
   FileText,
   Cpu,
-  AlertCircle
+  AlertCircle,
+  Plus
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -34,6 +36,13 @@ export default function AssetGenerator({ globalConfig, generatedStoryboard, gene
   const [roleModelAI, setRoleModelAI] = useState<RoleModelAI>(globalConfig.defaultProvider as any || "Gemini");
   const [prompt, setPrompt] = useState("");
   const [isEnhancing, setIsEnhancing] = useState(false);
+  const [isRealTime, setIsRealTime] = useState(() => localStorage.getItem("ASSET_REALTIME") === "true");
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem("ASSET_REALTIME", String(isRealTime));
+  }, [isRealTime]);
 
   // Sync with global config in real-time
   useEffect(() => {
@@ -74,6 +83,77 @@ export default function AssetGenerator({ globalConfig, generatedStoryboard, gene
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [error, setError] = useState("");
+
+  const generatePreview = useCallback(async (text: string) => {
+    if (!isRealTime || !text.trim() || isGenerating) return;
+    
+    const apiKey = getApiKey(modelProvider);
+    if (!apiKey) return;
+
+    setIsPreviewLoading(true);
+    try {
+      const firstLine = text.split('\n')[0].trim();
+      if (!firstLine) return;
+
+      if (modelProvider === "Gemini") {
+        const ai = new GoogleGenAI({ apiKey });
+        const response = await ai.models.generateContent({
+          model: "gemini-3.1-flash-image-preview",
+          contents: { parts: [{ text: firstLine }] },
+          config: {
+            imageConfig: {
+              aspectRatio: ratio,
+              imageSize: "1K"
+            }
+          }
+        });
+        const imagePart = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
+        if (imagePart?.inlineData) {
+          setPreviewUrl(`data:image/png;base64,${imagePart.inlineData.data}`);
+        }
+      } else {
+        try {
+          const res = await axios.post("/api/generate-image", {
+            prompt: firstLine,
+            provider: modelProvider,
+            apiKey,
+            ratio
+          });
+          setPreviewUrl(res.data.url);
+        } catch (apiError) {
+          console.warn(`${modelProvider} preview failed, falling back to Gemini`, apiError);
+          const geminiKey = getApiKey("Gemini");
+          if (geminiKey) {
+            const ai = new GoogleGenAI({ apiKey: geminiKey });
+            const response = await ai.models.generateContent({
+              model: "gemini-3.1-flash-image-preview",
+              contents: { parts: [{ text: firstLine }] },
+              config: { imageConfig: { aspectRatio: ratio, imageSize: "1K" } }
+            });
+            const imagePart = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
+            if (imagePart?.inlineData) {
+              setPreviewUrl(`data:image/png;base64,${imagePart.inlineData.data}`);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Preview generation failed", e);
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  }, [isRealTime, modelProvider, ratio, isGenerating]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (prompt.trim()) {
+        generatePreview(prompt);
+      } else {
+        setPreviewUrl(null);
+      }
+    }, 2000); // 2s debounce for real-time
+    return () => clearTimeout(timer);
+  }, [prompt, generatePreview]);
 
   const getApiKey = (provider: "Gemini" | "OpenRouter" | "MaiaRouter" | "OpenAI") => {
     const storageKey = 
@@ -205,9 +285,7 @@ export default function AssetGenerator({ globalConfig, generatedStoryboard, gene
           if (type === "Image") {
             const response = await ai.models.generateContent({
               model: "gemini-3.1-flash-image-preview",
-              contents: {
-                parts: [{ text: currentPrompt }]
-              },
+              contents: { parts: [{ text: currentPrompt }] },
               config: {
                 imageConfig: {
                   aspectRatio: ratio,
@@ -215,7 +293,6 @@ export default function AssetGenerator({ globalConfig, generatedStoryboard, gene
                 }
               }
             });
-
             const imagePart = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
             if (imagePart?.inlineData) {
               const imageUrl = `data:image/png;base64,${imagePart.inlineData.data}`;
@@ -255,36 +332,35 @@ export default function AssetGenerator({ globalConfig, generatedStoryboard, gene
               setGeneratedItems(prev => [{ url: videoUrl, type: "Video", prompt: userPrompt, ratio }, ...prev]);
             }
           }
-        } else if (modelProvider === "OpenAI") {
+        } else if (modelProvider === "OpenAI" || modelProvider === "OpenRouter" || modelProvider === "MaiaRouter") {
           if (type === "Image") {
-            let size = "1024x1024";
-            if (ratio === "16:9") size = "1792x1024";
-            else if (ratio === "9:16") size = "1024x1792";
-            else if (ratio === "4:3") size = "1024x1024"; // DALL-E 3 fallback
-
-            const response = await fetch("https://api.openai.com/v1/images/generations", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${apiKey}`
-              },
-              body: JSON.stringify({
-                model: "dall-e-3",
+            try {
+              const res = await axios.post("/api/generate-image", {
                 prompt: currentPrompt,
-                n: 1,
-                size,
-                quality: "hd"
-              })
-            });
+                provider: modelProvider,
+                apiKey,
+                ratio
+              });
+              setGeneratedItems(prev => [{ url: res.data.url, type: "Image", prompt: userPrompt, ratio }, ...prev]);
+            } catch (apiError) {
+              console.warn(`${modelProvider} generation failed, falling back to Gemini`, apiError);
+              const geminiKey = getApiKey("Gemini");
+              if (!geminiKey) throw apiError;
 
-            if (!response.ok) {
-              const errData = await response.json();
-              throw new Error(errData.error?.message || "Chatgpt Image generation failed");
+              const ai = new GoogleGenAI({ apiKey: geminiKey });
+              const response = await ai.models.generateContent({
+                model: "gemini-3.1-flash-image-preview",
+                contents: { parts: [{ text: currentPrompt }] },
+                config: { imageConfig: { aspectRatio: ratio, imageSize: "1K" } }
+              });
+              const imagePart = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
+              if (imagePart?.inlineData) {
+                const imageUrl = `data:image/png;base64,${imagePart.inlineData.data}`;
+                setGeneratedItems(prev => [{ url: imageUrl, type: "Image", prompt: userPrompt, ratio }, ...prev]);
+              } else {
+                throw apiError;
+              }
             }
-
-            const data = await response.json();
-            const imageUrl = data.data[0].url;
-            setGeneratedItems(prev => [{ url: imageUrl, type: "Image", prompt: userPrompt, ratio }, ...prev]);
           } else {
             // Chatgpt Video Fallback (using Gemini Veo with LLM-enhanced prompt)
             const geminiKey = getApiKey("Gemini");
@@ -319,53 +395,8 @@ export default function AssetGenerator({ globalConfig, generatedStoryboard, gene
             }
           }
         } else {
-          // Flow or Adobe Firefly
-          const baseUrl = modelProvider === "OpenRouter" ? "https://openrouter.ai/api/v1" : "https://api.maiarouter.ai/v1";
-          const modelName = modelProvider === "OpenRouter" ? "openai/dall-e-3" : "maia/stable-diffusion-xl";
-          
-          if (type === "Image") {
-            // Try standard image generation endpoint
-            let size = "1024x1024";
-            if (ratio === "16:9") size = "1792x1024";
-            else if (ratio === "9:16") size = "1024x1792";
-
-            const response = await fetch(`${baseUrl}/images/generations`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${apiKey}`
-              },
-              body: JSON.stringify({
-                model: modelName,
-                prompt: currentPrompt,
-                size
-              })
-            });
-
-            if (response.ok) {
-              const data = await response.json();
-              const imageUrl = data.data[0].url;
-              setGeneratedItems(prev => [{ url: imageUrl, type: "Image", prompt: userPrompt, ratio }, ...prev]);
-            } else {
-              // Fallback: Use Gemini
-              const geminiKey = getApiKey("Gemini");
-              if (!geminiKey) throw new Error(`${modelProvider} image generation failed and no Gemini key for fallback.`);
-              
-              const ai = new GoogleGenAI({ apiKey: geminiKey });
-              const geminiResponse = await ai.models.generateContent({
-                model: "gemini-3.1-flash-image-preview",
-                contents: { parts: [{ text: currentPrompt }] },
-                config: { imageConfig: { aspectRatio: ratio, imageSize: "1K" } }
-              });
-              const imagePart = geminiResponse.candidates?.[0]?.content?.parts.find(p => p.inlineData);
-              if (imagePart?.inlineData) {
-                const imageUrl = `data:image/png;base64,${imagePart.inlineData.data}`;
-                setGeneratedItems(prev => [{ url: imageUrl, type: "Image", prompt: userPrompt, ratio }, ...prev]);
-              }
-            }
-          } else {
-            // Video Fallback for Router providers
-            const geminiKey = getApiKey("Gemini");
+          // Video Fallback for Router providers
+          const geminiKey = getApiKey("Gemini");
             if (!geminiKey) throw new Error(`${modelProvider} does not support video. Gemini API key is required as a fallback.`);
             
             const ai = new GoogleGenAI({ apiKey: geminiKey });
@@ -390,10 +421,9 @@ export default function AssetGenerator({ globalConfig, generatedStoryboard, gene
               const videoUrl = URL.createObjectURL(blob);
               setGeneratedItems(prev => [{ url: videoUrl, type: "Video", prompt: userPrompt, ratio }, ...prev]);
             }
-          }
         }
+        clearPrompt();
       }
-      clearPrompt();
     } catch (err: any) {
       console.error("Generation failed", err);
       const errorMessage = err.message || "";
@@ -592,6 +622,15 @@ export default function AssetGenerator({ globalConfig, generatedStoryboard, gene
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-emerald-400" />
                 <h3 className="text-xs font-bold text-slate-300 uppercase tracking-widest">Prompt</h3>
+                <div className="flex items-center gap-2 ml-4">
+                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Real-time</span>
+                  <button 
+                    onClick={() => setIsRealTime(!isRealTime)}
+                    className={`w-8 h-4 rounded-full relative transition-all ${isRealTime ? 'bg-blue-600' : 'bg-slate-800'}`}
+                  >
+                    <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${isRealTime ? 'right-0.5' : 'left-0.5'}`} />
+                  </button>
+                </div>
                 <span className="text-[9px] font-bold text-slate-500 bg-slate-800 px-2 py-0.5 rounded-full border border-slate-700">BATCH MODE</span>
               </div>
               <div className="flex items-center gap-2">
@@ -621,8 +660,33 @@ export default function AssetGenerator({ globalConfig, generatedStoryboard, gene
                 placeholder="Enter multiple prompts (one per line)..."
                 className="w-full min-h-[14rem] bg-slate-800/30 border border-slate-700/50 rounded-2xl p-5 text-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none shadow-inner text-sm leading-relaxed placeholder:text-slate-600"
               />
+              <AnimatePresence>
+                {previewUrl && isRealTime && (
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    className="absolute bottom-4 right-4 w-32 aspect-square rounded-xl overflow-hidden border border-white/20 shadow-2xl z-10 group/preview"
+                  >
+                    <img src={previewUrl} className="w-full h-full object-cover" alt="Preview" referrerPolicy="no-referrer" />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/preview:opacity-100 transition-opacity flex items-center justify-center">
+                      <button 
+                        onClick={() => setGeneratedItems(prev => [{ url: previewUrl, type: "Image", prompt: prompt.split('\n')[0], ratio }, ...prev])}
+                        className="p-1.5 bg-white/20 backdrop-blur-md rounded-lg text-white hover:bg-white/40 transition-all"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              {isPreviewLoading && (
+                <div className="absolute bottom-4 right-4 w-32 aspect-square rounded-xl bg-slate-900/80 backdrop-blur-md border border-slate-800 flex items-center justify-center z-10">
+                  <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+                </div>
+              )}
               <div className="absolute bottom-4 right-4 pointer-events-none opacity-20 group-focus-within:opacity-40 transition-opacity">
-                <Sparkles className="w-8 h-8 text-blue-400" />
+                {!previewUrl && <Sparkles className="w-8 h-8 text-blue-400" />}
               </div>
             </div>
           </div>

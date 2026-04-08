@@ -1413,6 +1413,64 @@ async function startServer() {
     }
   });
 
+  app.post("/api/generate-image", async (req, res) => {
+    const { prompt, provider, apiKey, ratio } = req.body;
+    if (!prompt || !provider || !apiKey) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    try {
+      if (provider === "OpenAI") {
+        const openai = new OpenAI({ apiKey });
+        let size: any = "1024x1024";
+        if (ratio === "16:9") size = "1792x1024";
+        else if (ratio === "9:16") size = "1024x1792";
+
+        const response = await openai.images.generate({
+          model: "dall-e-3",
+          prompt: prompt,
+          n: 1,
+          size: size,
+          quality: "hd",
+        });
+        return res.json({ url: response.data[0].url });
+      } else if (provider === "OpenRouter" || provider === "MaiaRouter") {
+        const baseURL = provider === "OpenRouter" ? "https://openrouter.ai/api/v1" : "https://api.maiarouter.ai/v1";
+        const model = provider === "OpenRouter" ? "openai/dall-e-3" : "maia/stable-diffusion-xl";
+        
+        const openai = new OpenAI({ 
+          apiKey, 
+          baseURL,
+          defaultHeaders: {
+            "HTTP-Referer": "https://ai.studio",
+            "X-Title": "AI Studio Applet"
+          }
+        });
+
+        let size: any = "1024x1024";
+        if (ratio === "16:9") size = "1792x1024";
+        else if (ratio === "9:16") size = "1024x1792";
+
+        const response = await openai.images.generate({
+          model: model,
+          prompt: prompt,
+          n: 1,
+          size: size,
+        });
+        return res.json({ url: response.data[0].url });
+      }
+      res.status(400).json({ error: "Unsupported provider for server-side image generation" });
+    } catch (e: any) {
+      const errorData = e.response?.data;
+      const errorMessage = typeof errorData === 'string' && errorData.includes('<!DOCTYPE html>') 
+        ? "Provider returned a 404/Not Found error. This provider may not support image generation."
+        : (errorData?.error?.message || e.message);
+      
+      console.error(`Image generation error (${provider}):`, errorMessage);
+      res.status(500).json({ error: errorMessage });
+    }
+  });
+
   // AI Intelligence: Trending
   app.get("/api/trending", (req, res) => {
     res.json(db.trending);
