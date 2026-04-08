@@ -45,7 +45,7 @@ if (ffprobePath) {
 }
 
 // Ensure storage directories exist
-const BASE_DIR = process.env.NODE_ENV === 'production' ? os.tmpdir() : process.cwd();
+const BASE_DIR = process.cwd();
 const STORAGE_DIR = path.join(BASE_DIR, 'storage');
 const VIDEOS_DIR = path.join(STORAGE_DIR, 'videos');
 const THUMBNAILS_DIR = path.join(STORAGE_DIR, 'thumbnails');
@@ -142,6 +142,7 @@ const db = {
   media: [] as any[],
   keywords: [] as any[],
   trending: [] as any[],
+  aiKeys: {} as Record<string, any[]>,
   oauthStates: new Map<string, any>()
 };
 
@@ -154,7 +155,8 @@ function saveDb() {
       history: db.history,
       media: db.media,
       keywords: db.keywords,
-      trending: db.trending
+      trending: db.trending,
+      aiKeys: db.aiKeys
     };
     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
   } catch (e) {
@@ -173,6 +175,7 @@ if (fs.existsSync(DB_FILE)) {
     db.media = data.media || [];
     db.keywords = data.keywords || [];
     db.trending = data.trending || [];
+    db.aiKeys = data.aiKeys || {};
     console.log("Database loaded from file.");
   } catch (e) {
     console.error("Failed to load database:", e);
@@ -279,7 +282,8 @@ async function processMedia(mediaId: string, url?: string, source?: string) {
           const response = await axios({
             method: 'get',
             url: downloadUrl,
-            responseType: 'stream'
+            responseType: 'stream',
+            timeout: 0 // No timeout for large file downloads
           });
 
           const totalSize = parseInt(response.headers['content-length'] || '0');
@@ -784,167 +788,43 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json({ limit: '1000mb' }));
-  app.use(express.urlencoded({ limit: '1000mb', extended: true }));
-
-  // --- AI Intelligence Endpoints ---
-
-  app.get("/api/keywords", (req, res) => {
-    res.json(db.keywords);
-  });
-
-  app.post("/api/keyword-analyze", async (req, res) => {
-    const { keyword, provider, aiKeys, ytKeys, syncWithExternal, aiData: preGeneratedAiData } = req.body;
-    
-    let volume = Math.floor(Math.random() * 50000) + 1000;
-    let competition = Math.floor(Math.random() * 100);
-    let cpc = parseFloat((Math.random() * 5).toFixed(2));
-    let intent = "Informational";
-    let cluster = `${keyword} Cluster`;
-    let contentStrategy = {
-      title: `Mastering ${keyword}: The Ultimate Guide`,
-      angle: `How to dominate ${keyword} in 2024 with unique insights.`,
-      format: "Storytelling" as const
-    };
-
-    let ytData: any = null;
-    // 1. Sync with YouTube if keys provided
-    if (syncWithExternal) {
-      if (ytKeys && ytKeys.length > 0) {
-        ytData = await getYouTubeData(keyword, ytKeys[0]);
-        if (ytData) {
-          volume = ytData.volume;
-          competition = ytData.competition;
-        }
-      }
-    }
-
-    // 2. Use AI data (either pre-generated from frontend or call backend AI)
-    let aiData = preGeneratedAiData;
-    if (!aiData && aiKeys && aiKeys.length > 0 && provider !== "Gemini") {
-      const prompt = `Analyze the keyword "${keyword}". 
-      Return ONLY a valid JSON object (no markdown, no backticks, no extra text) with the following structure: 
-      {
-        "intent": "Informational" | "Commercial" | "Transactional",
-        "cluster": "short cluster name",
-        "cpc": number,
-        "angle": "unique angle",
-        "title": "high-CTR title",
-        "ctrLab": { "sentiment": number, "thumbnailTips": ["tip1", "tip2", "tip3"] },
-        "viralForecast": { 
-          "topics": [{ "title": "topic", "viralChance": number }], 
-          "marketStatus": "STEADY" | "RISING" | "VOLATILE" 
-        },
-        "highVolumeSearch": [
-          { "keyword": "string", "score": number, "tag": "HOT" | "NEW" | "EASY" | "STABLE", "subtext": "string" }
-        ],
-        "marketLeaders": [
-          { "name": "string", "subs": "string", "description": "string" }
-        ]
-      }`;
-      
-      aiData = await callAIProvider(prompt, provider, aiKeys);
-    }
-
-    if (aiData) {
-      intent = aiData.intent || intent;
-      cluster = aiData.cluster || cluster;
-      cpc = aiData.cpc || cpc;
-      if (aiData.title) contentStrategy.title = aiData.title;
-      if (aiData.angle) contentStrategy.angle = aiData.angle;
-    }
-    
-    // Opportunity Score
-    const normalizedVolume = (volume / 50000) * 100;
-    const opportunityScore = (normalizedVolume * 0.4) - (competition * 0.4) + (cpc * 20 * 0.2);
-
-    const newKeyword: any = {
-      id: uuidv4(),
-      keyword,
-      volume,
-      competition,
-      cpc,
-      intent,
-      cluster,
-      opportunityScore: Math.max(0, Math.min(100, opportunityScore + 50)),
-      createdAt: new Date().toISOString(),
-      highVolumeSearch: aiData?.highVolumeSearch || ytData?.highVolumeSearch || [
-        { keyword: `${keyword} guide`, score: 95, tag: "HOT", subtext: "PER MONTH" },
-        { keyword: `best ${keyword} 2024`, score: 90, tag: "HOT", subtext: "PER MONTH" },
-        { keyword: `how to ${keyword}`, score: 85, tag: "HOT", subtext: "PER MONTH" },
-        { keyword: `${keyword} tips`, score: 80, tag: "NEW", subtext: "PER MONTH" },
-        { keyword: `${keyword} tutorial`, score: 75, tag: "NEW", subtext: "PER MONTH" },
-        { keyword: `top ${keyword} channels`, score: 70, tag: "HOT", subtext: "PER MONTH" },
-        { keyword: `${keyword} for beginners`, score: 65, tag: "EASY", subtext: "PER MONTH" },
-        { keyword: `advanced ${keyword}`, score: 82, tag: "HOT", subtext: "PER MONTH" },
-        { keyword: `${keyword} trends`, score: 78, tag: "STABLE", subtext: "PER MONTH" },
-      ],
-      marketLeaders: aiData?.marketLeaders || ytData?.marketLeaders || [
-        { name: `${keyword.toUpperCase()} EXPERT`, subs: "1.2M", description: `Channel utama yang membahas segala hal tentang ${keyword}.` },
-        { name: "TECH INSIGHTS", subs: "5.5M", description: `Analisis mendalam dan berita terbaru seputar ${keyword}.` },
-        { name: "GLOBAL TRENDS", subs: "33.2M", description: `Melihat ${keyword} dari perspektif global dan masa depan.` },
-        { name: "CREATIVE HUB", subs: "4.8M", description: `Inspirasi dan ide kreatif untuk konten bertema ${keyword}.` },
-        { name: "MASTER CLASS", subs: "1.8M", description: `Tutorial langkah demi langkah untuk menguasai ${keyword}.` },
-        { name: "PRO ANALYTICS", subs: "30.5M", description: `Data dan statistik untuk strategi ${keyword} yang sukses.` },
-      ],
-      ctrLab: aiData?.ctrLab || {
-        sentiment: 88,
-        thumbnailTips: [
-          `Gunakan warna kontras tinggi untuk topik ${keyword}.`,
-          `Tampilkan elemen visual yang relevan dengan ${keyword}.`,
-          `Tambahkan teks besar dan tebal untuk meningkatkan CTR.`
-        ]
-      },
-      viralForecast: aiData?.viralForecast || {
-        topics: [
-          { title: `Panduan Lengkap ${keyword} 2024`, viralChance: 85 },
-          { title: `Rahasia Sukses dengan ${keyword}`, viralChance: 80 },
-          { title: `Tren Terbaru ${keyword} di Indonesia`, viralChance: 90 }
-        ],
-        marketStatus: "STEADY"
-      }
-    };
-
-    db.keywords.unshift(newKeyword);
-    
-    saveDb();
-    res.json(newKeyword);
-  });
-
-  app.delete("/api/data/:type/:id", (req, res) => {
-    const { type, id } = req.params;
-    if (type === 'keyword') db.keywords = db.keywords.filter(k => k.id !== id);
-    saveDb();
-    res.json({ success: true });
-  });
-
-  app.post("/api/export", (req, res) => {
-    const { format, activeSubTab } = req.body;
-    // In a real app, this would generate a file and return a URL
-    // For now, we'll just return a success message and a dummy URL
-    res.json({ 
-      success: true, 
-      downloadUrl: `data:text/plain;charset=utf-8,${encodeURIComponent(`Exporting ${activeSubTab} as ${format}`)}` 
-    });
-  });
+  app.use(express.json({ limit: '5000mb' }));
+  app.use(express.urlencoded({ limit: '5000mb', extended: true }));
 
   // --- End AI Intelligence Endpoints ---
 
   // API: System Stats (Realtime Monitoring)
   app.get("/api/stats", async (req, res) => {
     try {
-      const totalMem = os.totalmem();
-      const freeMem = os.freemem();
+      let totalMem = os.totalmem();
+      let freeMem = os.freemem();
+      
+      // On Linux (Debian/VPS), we can get more accurate "Available" memory which excludes buffers/cache
+      if (process.platform === 'linux') {
+        try {
+          const memInfo = fs.readFileSync('/proc/meminfo', 'utf8');
+          const totalMatch = memInfo.match(/^MemTotal:\s+(\d+)\s+kB/m);
+          const availMatch = memInfo.match(/^MemAvailable:\s+(\d+)\s+kB/m);
+          if (totalMatch && availMatch) {
+            totalMem = parseInt(totalMatch[1]) * 1024;
+            freeMem = parseInt(availMatch[1]) * 1024;
+          }
+        } catch (e) {
+          console.warn("[System] Failed to read /proc/meminfo, falling back to os.freemem()");
+        }
+      }
+
       const usedMem = totalMem - freeMem;
       const ramUsage = Math.round((usedMem / totalMem) * 100);
       
       // CPU Load based on loadavg (1 min) normalized by CPU count
       const cpuCount = os.cpus().length;
       const loadAvg = os.loadavg()[0];
+      // Load average can exceed cpuCount, so we cap it at 100% for the UI gauge
       const cpuLoad = Math.min(Math.round((loadAvg / cpuCount) * 100), 100);
       
-      // Real Storage Monitoring
-      const diskSpace = await checkDiskSpace(process.cwd());
+      // Real Storage Monitoring - check the root or current directory
+      const diskSpace = await checkDiskSpace(process.platform === 'win32' ? process.cwd().split(path.sep)[0] : '/');
       const storageUsage = Math.round(((diskSpace.size - diskSpace.free) / diskSpace.size) * 100);
       
       res.json({
@@ -956,12 +836,28 @@ async function startServer() {
         totalStorage: Math.round(diskSpace.size / (1024 * 1024 * 1024)), // in GB
         videoSchedule: db.jobs.filter(j => !['completed', 'failed'].includes(j.status.toLowerCase())).length,
         activeChannels: db.channels.length,
-        queueSize: db.jobs.filter(j => !['completed', 'failed'].includes(j.status.toLowerCase())).length
+        queueSize: db.jobs.filter(j => !['completed', 'failed'].includes(j.status.toLowerCase())).length,
+        platform: process.platform === 'linux' ? 'Debian Linux VPS' : process.platform
       });
     } catch (error) {
       console.error("Error fetching system stats:", error);
       res.status(500).json({ error: "Failed to fetch system stats" });
     }
+  });
+
+  // API: AI Keys Management
+  app.get("/api/config/keys", (req, res) => {
+    res.json(db.aiKeys);
+  });
+
+  app.post("/api/config/keys", (req, res) => {
+    const { provider, keys } = req.body;
+    if (!provider || !Array.isArray(keys)) {
+      return res.status(400).json({ error: "Invalid request body" });
+    }
+    db.aiKeys[provider] = keys;
+    saveDb();
+    res.json({ success: true });
   });
 
   // API: Google API Config Management
@@ -1471,98 +1367,8 @@ async function startServer() {
     }
   });
 
-  // AI Intelligence: Trending
-  app.get("/api/trending", (req, res) => {
-    res.json(db.trending);
-  });
-
-  app.post("/api/trending-analyze", async (req, res) => {
-    const { niche, platform, timeRange, region, provider, aiKeys, ytKeys, aiData: preGeneratedAiData } = req.body;
-
-    let ytData: any[] = [];
-    if (ytKeys && ytKeys.length > 0) {
-      const regionCode = region === "Indonesia" ? "ID" : (region === "Asia" ? "JP" : "US");
-      let publishedAfter = new Date();
-      if (timeRange === "24 JAM") publishedAfter.setHours(publishedAfter.getHours() - 24);
-      else if (timeRange === "7 HARI") publishedAfter.setDate(publishedAfter.getDate() - 7);
-      else if (timeRange === "30 HARI") publishedAfter.setDate(publishedAfter.getDate() - 30);
-      
-      ytData = await getYouTubeNicheTrending(ytKeys[0], niche, regionCode, publishedAfter.toISOString(), 15);
-    }
-
-    let aiData = preGeneratedAiData;
-    if (!aiData && aiKeys && aiKeys.length > 0) {
-      const ytContext = ytData.length > 0 
-        ? `YouTube Data (Real-time): ${JSON.stringify(ytData.map(v => ({ 
-            title: v.snippet.title, 
-            channel: v.snippet.channelTitle, 
-            views: v.statistics.viewCount,
-            likes: v.statistics.likeCount,
-            publishedAt: v.snippet.publishedAt
-          })))}`
-        : "TIDAK ADA DATA REALTIME TERSEDIA. Gunakan pengetahuan internal Anda untuk memberikan analisis yang akurat untuk niche ini.";
-
-      const prompt = `Kamu adalah seorang analisis trend YouTube professional berbasis data realtime.
-      TASK: Berikan insight trend YouTube untuk niche: "${niche}" pada platform ${platform} di wilayah ${region} dalam kurun waktu ${timeRange}.
-      
-      ${ytContext}
-      
-      OUTPUT YANG WAJIB DITAMPILKAN DALAM JSON:
-      1. marketLeaders: array of 7 objects { ranking, channelName, nicheRelevance, avgViews, growthRate, engagementRate, insight }
-      2. subtopics: array of 4 objects { title, growth, competition, opportunityScore, insight }
-      3. viralHooks: array of 5 objects { hook, effectiveness, platform }
-      4. contentStrategy: object { format, duration, structure: { hook, buildUp, climax, cta }, ideas: string[], frequency, optimization: { title, thumbnail, retention } }
-      
-      ATURAN:
-      - Jangan halusinasi data. Gunakan data YouTube yang disediakan sebagai basis analisis utama.
-      - Gunakan bahasa Indonesia yang jelas, actionable, dan strategis.
-      - Fokus pada creator mindset & growth.`;
-      
-      console.log(`[AI] Analyzing trending for niche: ${niche} using ${provider}`);
-      aiData = await callAIProvider(prompt, provider, aiKeys);
-      if (!aiData) console.warn(`[AI] Analysis failed for niche: ${niche}`);
-    }
-
-    const newTrending: any = {
-      id: uuidv4(),
-      niche,
-      platform,
-      timeRange,
-      region,
-      createdAt: new Date().toISOString(),
-      marketLeaders: aiData?.marketLeaders || [],
-      subtopics: aiData?.subtopics || [],
-      viralHooks: aiData?.viralHooks || [],
-      contentStrategy: {
-        format: aiData?.contentStrategy?.format || "N/A",
-        duration: aiData?.contentStrategy?.duration || "N/A",
-        frequency: aiData?.contentStrategy?.frequency || "N/A",
-        structure: {
-          hook: aiData?.contentStrategy?.structure?.hook || "N/A",
-          buildUp: aiData?.contentStrategy?.structure?.buildUp || "N/A",
-          climax: aiData?.contentStrategy?.structure?.climax || "N/A",
-          cta: aiData?.contentStrategy?.structure?.cta || "N/A"
-        },
-        ideas: aiData?.contentStrategy?.ideas || [],
-        optimization: {
-          title: aiData?.contentStrategy?.optimization?.title || "N/A",
-          thumbnail: aiData?.contentStrategy?.optimization?.thumbnail || "N/A",
-          retention: aiData?.contentStrategy?.optimization?.retention || "N/A"
-        }
-      }
-    };
-
-    db.trending.unshift(newTrending);
-    saveDb();
-    res.json(newTrending);
-  });
-
-  app.delete("/api/trending/:id", (req, res) => {
-    const { id } = req.params;
-    db.trending = db.trending.filter(t => t.id !== id);
-    saveDb();
-    res.json({ success: true });
-  });
+  // AI Intelligence: Trending (Removed)
+  // End Trending Endpoints
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
@@ -1580,9 +1386,13 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
+
+  // Set timeout to 0 (no timeout) to allow large file uploads/downloads
+  server.timeout = 0;
+  server.keepAliveTimeout = 0;
 }
 
 startServer();

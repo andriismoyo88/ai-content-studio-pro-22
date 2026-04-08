@@ -304,9 +304,16 @@ export default function Settings() {
             {/* Server Monitoring Panel */}
             <div className="bg-[#111] border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
               <div className="p-4 border-b border-slate-800 bg-slate-900/50 flex items-center justify-between">
-                <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-2">
-                  <Activity className="w-4 h-4 text-blue-500" />
-                  Server Monitoring
+                <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-blue-500" />
+                    Server Monitoring
+                  </div>
+                  {stats?.platform && (
+                    <span className="text-[8px] px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded-full text-blue-400">
+                      {stats.platform}
+                    </span>
+                  )}
                 </h3>
                 <RefreshCw className="w-3 h-3 text-slate-600 animate-spin" style={{ animationDuration: '3s' }} />
               </div>
@@ -397,13 +404,20 @@ export default function Settings() {
                   </h3>
                   <p className="text-xs text-slate-500 mt-1">Manage multiple OAuth 2.0 credentials for quota rotation</p>
                 </div>
-                <button 
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-blue-600/20"
-                >
-                  <Upload className="w-4 h-4" />
-                  Upload client_secret.json
-                </button>
+                <div className="flex items-center gap-3">
+                  <div className="px-3 py-1.5 bg-blue-500/10 rounded-lg border border-blue-500/20 flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
+                    <span className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Realtime Sync Active</span>
+                  </div>
+                  <button 
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-blue-600/20 disabled:opacity-50"
+                  >
+                    {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                    {isUploading ? "Uploading..." : "Upload client_secret.json"}
+                  </button>
+                </div>
                 <input 
                   type="file" 
                   ref={fileInputRef} 
@@ -500,6 +514,10 @@ export default function Settings() {
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
+                  <div className="px-3 py-1.5 bg-red-500/10 rounded-lg border border-red-500/20 flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
+                    <span className="text-[10px] font-bold text-red-400 uppercase tracking-widest">Realtime Sync Active</span>
+                  </div>
                   <div className="flex items-center gap-1.5 p-1 bg-slate-950 rounded-xl border border-slate-800">
                     <button 
                       onClick={(e) => { e.stopPropagation(); setViewMode('grid'); }}
@@ -665,16 +683,22 @@ export default function Settings() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-center gap-3 py-4">
-                  <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
-                  <span className="text-xs text-slate-400">Waiting for authorization...</span>
+                <div className="flex items-center justify-center gap-3 py-4 bg-blue-500/5 rounded-2xl border border-blue-500/10">
+                  <div className="relative">
+                    <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
+                    <div className="absolute inset-0 bg-blue-500/20 blur-md rounded-full animate-pulse" />
+                  </div>
+                  <div className="text-left">
+                    <span className="text-[10px] font-bold text-blue-400 uppercase tracking-widest block">Real-Time Engine Active</span>
+                    <span className="text-[9px] text-slate-500">Waiting for Google Authorization on VPS...</span>
+                  </div>
                 </div>
 
                 <button 
                   onClick={stopPolling}
                   className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-slate-400 text-sm font-bold rounded-2xl transition-all border border-slate-800"
                 >
-                  Cancel
+                  Cancel & Stop Engine
                 </button>
               </div>
             </motion.div>

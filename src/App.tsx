@@ -25,7 +25,6 @@ import { SystemStats, GeneratedAsset, VoiceOverResult, Asset, GlobalConfig, Stor
 // Components (to be created)
 import Dashboard from "./components/Dashboard";
 import AssetGenerator from "./components/AssetGenerator";
-import AIIntelligence from "./components/AIIntelligence";
 import VoiceOver from "./components/VoiceOver";
 import YouTubeScheduler from "./components/YouTubeScheduler";
 import SummaryKeyword from "./components/SummaryKeyword";
@@ -35,7 +34,7 @@ import Settings from "./components/Settings";
 import Configuration from "./components/Configuration";
 import ErrorBoundary from "./components/ErrorBoundary";
 
-type Tab = "dashboard" | "configuration" | "ai-intelligence" | "storyboard" | "asset" | "voice" | "summary" | "upload" | "media" | "settings";
+type Tab = "dashboard" | "configuration" | "storyboard" | "asset" | "voice" | "summary" | "upload" | "media" | "settings";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
@@ -154,7 +153,6 @@ export default function App() {
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "configuration", label: "Configuration", icon: SettingsIcon },
-    { id: "ai-intelligence", label: "AI Intelligence", icon: Sparkles },
     { id: "summary", label: "Summary & Keyword", icon: FileSearch },
     { id: "storyboard", label: "StoryBoard Pro", icon: FileText },
     { id: "asset", label: "Asset Generator", icon: ImageIcon },
@@ -342,11 +340,6 @@ export default function App() {
                       <Configuration 
                         globalConfig={globalConfig} 
                         setGlobalConfig={setGlobalConfig} 
-                      />
-                    )}
-                    {activeTab === "ai-intelligence" && (
-                      <AIIntelligence 
-                        globalConfig={globalConfig} 
                       />
                     )}
                     {activeTab === "storyboard" && (

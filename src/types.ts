@@ -111,6 +111,7 @@ export interface SystemStats {
   videoSchedule: number;
   activeChannels: number;
   queueSize: number;
+  platform?: string;
 }
 
 export interface GeneratedAsset {

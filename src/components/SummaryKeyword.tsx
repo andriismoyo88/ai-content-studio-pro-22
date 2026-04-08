@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   FileSearch, 
   Sparkles, 
@@ -26,21 +26,29 @@ export default function SummaryKeyword() {
   const [result, setResult] = useState("");
   const [error, setError] = useState("");
 
-  const getApiKey = (provider: ModelProvider) => {
-    const storageKey = 
-      provider === "Gemini" ? "GEMINI_API_KEYS" : 
-      provider === "OpenRouter" ? "OPENROUTER_API_KEYS" :
-      provider === "MaiaRouter" ? "MAIAROUTER_API_KEYS" :
-      "OPENAI_API_KEYS";
-    const savedKeys = localStorage.getItem(storageKey);
-    if (savedKeys && savedKeys !== "undefined") {
+  const [apiKeys, setApiKeys] = useState<Record<string, any[]>>({});
+
+  useEffect(() => {
+    const fetchKeys = async () => {
       try {
-        const keys = JSON.parse(savedKeys);
-        if (keys.length > 0) return keys[0].key;
+        const res = await fetch("/api/config/keys");
+        if (res.ok) {
+          const data = await res.json();
+          setApiKeys(data);
+        }
       } catch (e) {
-        console.error("Error parsing keys:", e);
+        console.error("Error loading keys from server:", e);
       }
-    }
+    };
+    fetchKeys();
+    const interval = setInterval(fetchKeys, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const getApiKey = (provider: ModelProvider) => {
+    const keys = apiKeys[provider];
+    if (keys && keys.length > 0) return keys[0].key;
+    
     // Fallback for Gemini if no key in localStorage
     if (provider === "Gemini") return process.env.GEMINI_API_KEY;
     return null;

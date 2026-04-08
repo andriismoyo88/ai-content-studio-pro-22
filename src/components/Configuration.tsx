@@ -56,24 +56,32 @@ export default function Configuration({ globalConfig, setGlobalConfig }: Configu
   const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
-    const newMap = { ...keysMap };
-    PROVIDERS.forEach(p => {
-      const saved = localStorage.getItem(p.storageKey);
-      if (saved) {
-        try {
-          newMap[p.id] = JSON.parse(saved);
-        } catch (e) {
-          console.error(`Error loading ${p.id} keys:`, e);
+    const fetchKeys = async () => {
+      try {
+        const res = await fetch("/api/config/keys");
+        if (res.ok) {
+          const data = await res.json();
+          setKeysMap(prev => ({
+            ...prev,
+            ...data
+          }));
         }
+      } catch (e) {
+        console.error("Error loading keys from server:", e);
       }
-    });
-    setKeysMap(newMap);
+    };
+    fetchKeys();
   }, []);
 
-  const saveKeys = (provider: Provider, keys: ApiKeyEntry[]) => {
-    const p = PROVIDERS.find(pr => pr.id === provider);
-    if (p) {
-      localStorage.setItem(p.storageKey, JSON.stringify(keys));
+  const saveKeys = async (provider: Provider, keys: ApiKeyEntry[]) => {
+    try {
+      await fetch("/api/config/keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider, keys })
+      });
+    } catch (e) {
+      console.error(`Error saving ${provider} keys to server:`, e);
     }
   };
 
@@ -92,7 +100,7 @@ export default function Configuration({ globalConfig, setGlobalConfig }: Configu
     }
 
     const newEntry: ApiKeyEntry = {
-      id: crypto.randomUUID(),
+      id: typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15),
       key: val,
       addedAt: new Date().toISOString(),
     };

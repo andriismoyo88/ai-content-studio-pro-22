@@ -155,21 +155,28 @@ export default function AssetGenerator({ globalConfig, generatedStoryboard, gene
     return () => clearTimeout(timer);
   }, [prompt, generatePreview]);
 
-  const getApiKey = (provider: "Gemini" | "OpenRouter" | "MaiaRouter" | "OpenAI") => {
-    const storageKey = 
-      provider === "Gemini" ? "GEMINI_API_KEYS" : 
-      provider === "OpenRouter" ? "OPENROUTER_API_KEYS" :
-      provider === "MaiaRouter" ? "MAIAROUTER_API_KEYS" :
-      "OPENAI_API_KEYS";
-    const savedKeys = localStorage.getItem(storageKey);
-    if (savedKeys && savedKeys !== "undefined") {
+  const [apiKeys, setApiKeys] = useState<Record<string, any[]>>({});
+
+  useEffect(() => {
+    const fetchKeys = async () => {
       try {
-        const keys = JSON.parse(savedKeys);
-        if (keys.length > 0) return keys[0].key;
+        const res = await fetch("/api/config/keys");
+        if (res.ok) {
+          const data = await res.json();
+          setApiKeys(data);
+        }
       } catch (e) {
-        console.error("Error parsing keys:", e);
+        console.error("Error loading keys from server:", e);
       }
-    }
+    };
+    fetchKeys();
+    const interval = setInterval(fetchKeys, 10000); // Sync every 10s
+    return () => clearInterval(interval);
+  }, []);
+
+  const getApiKey = (provider: "Gemini" | "OpenRouter" | "MaiaRouter" | "OpenAI") => {
+    const keys = apiKeys[provider];
+    if (keys && keys.length > 0) return keys[0].key;
     
     if (provider === "Gemini") {
       return (process.env as any).API_KEY || process.env.GEMINI_API_KEY;

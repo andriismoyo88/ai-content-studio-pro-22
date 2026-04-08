@@ -1,5 +1,5 @@
 import { SystemStats, Asset } from "../types";
-import { Cpu, Activity, Database, Calendar, TrendingUp, Clock, Upload, FileAudio, FileVideo, FileImage, Globe, Youtube } from "lucide-react";
+import { Cpu, Activity, Database, Calendar, TrendingUp, Clock, Upload, FileAudio, FileVideo, FileImage, Globe, Youtube, Search } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { useRef, useState, useEffect } from "react";
@@ -56,7 +56,8 @@ export default function Dashboard({
       subValue: `${stats.cpuCount} vCPU`,
       icon: Cpu, 
       color: "text-blue-400", 
-      bg: "bg-blue-400/10" 
+      bg: "bg-blue-400/10",
+      glow: "group-hover:shadow-[0_0_20px_rgba(59,130,246,0.3)]"
     },
     { 
       label: "RAM Usage", 
@@ -64,7 +65,8 @@ export default function Dashboard({
       subValue: `${stats.totalRam} GB Total`,
       icon: Activity, 
       color: "text-indigo-400", 
-      bg: "bg-indigo-400/10" 
+      bg: "bg-indigo-400/10",
+      glow: "group-hover:shadow-[0_0_20px_rgba(129,140,248,0.3)]"
     },
     { 
       label: "Storage", 
@@ -72,7 +74,8 @@ export default function Dashboard({
       subValue: `${stats.totalStorage} GB Total`,
       icon: Database, 
       color: "text-emerald-400", 
-      bg: "bg-emerald-400/10" 
+      bg: "bg-emerald-400/10",
+      glow: "group-hover:shadow-[0_0_20px_rgba(52,211,153,0.3)]"
     },
     { 
       label: "Video Schedule", 
@@ -80,7 +83,8 @@ export default function Dashboard({
       subValue: stats.videoSchedule > 0 ? `${stats.videoSchedule} Active` : "No Pending",
       icon: Calendar, 
       color: stats.videoSchedule > 0 ? "text-red-400" : "text-amber-400", 
-      bg: stats.videoSchedule > 0 ? "bg-red-400/10" : "bg-amber-400/10" 
+      bg: stats.videoSchedule > 0 ? "bg-red-400/10" : "bg-amber-400/10",
+      glow: stats.videoSchedule > 0 ? "group-hover:shadow-[0_0_20px_rgba(248,113,113,0.3)]" : "group-hover:shadow-[0_0_20px_rgba(251,191,36,0.3)]"
     },
     { 
       label: "Jakarta Time", 
@@ -88,7 +92,8 @@ export default function Dashboard({
       subValue: formatJakartaDate(currentTime),
       icon: Globe, 
       color: "text-rose-400", 
-      bg: "bg-rose-400/10" 
+      bg: "bg-rose-400/10",
+      glow: "group-hover:shadow-[0_0_20px_rgba(251,113,133,0.3)]"
     },
   ];
 
@@ -192,18 +197,21 @@ export default function Dashboard({
             className="bg-slate-900 border border-slate-800 p-6 rounded-2xl hover:border-slate-700 transition-all group relative overflow-hidden"
           >
             <div className="flex items-center justify-between mb-4 relative z-10">
-              <div className={`p-3 rounded-xl ${card.bg} transition-all duration-300 group-hover:scale-110 group-hover:shadow-[0_0_20px_rgba(59,130,246,0.2)]`}>
+              <div className={`p-3 rounded-xl ${card.bg} transition-all duration-300 group-hover:scale-110 ${card.glow}`}>
                 <card.icon className={`w-6 h-6 ${card.color}`} />
               </div>
-              <div className="flex items-center text-[10px] font-bold text-slate-500 bg-slate-800/50 px-2 py-1 rounded-full border border-slate-700/50">
+              <div className="flex items-center text-[10px] font-mono font-bold text-slate-500 bg-slate-800/50 px-2 py-1 rounded-full border border-slate-700/50">
                 {card.subValue}
               </div>
             </div>
             <div className="relative z-10">
-              <h3 className="text-slate-400 text-sm font-medium">{card.label}</h3>
-              <p className="text-2xl font-bold text-slate-100 mt-1">{card.value}</p>
+              <h3 className="text-slate-400 text-[10px] uppercase tracking-widest font-bold">{card.label}</h3>
+              <p className="text-3xl font-mono font-bold text-slate-100 mt-1 tracking-tighter">{card.value}</p>
             </div>
             <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-blue-500/5 rounded-full blur-3xl group-hover:bg-blue-500/10 transition-all duration-500" />
+            
+            {/* Hardware feel: Subtle dashed border on hover */}
+            <div className="absolute inset-0 border border-dashed border-slate-700/0 group-hover:border-slate-700/50 rounded-2xl transition-all pointer-events-none" />
           </motion.div>
         ))}
       </div>
@@ -215,11 +223,11 @@ export default function Dashboard({
             <Activity className="w-6 h-6 text-red-500" />
             PROCESS MANAGER – Real-Time Engine Monitor
           </h2>
-          <p className="text-xs text-slate-500 uppercase tracking-widest mt-1">System Management & Queue Monitor</p>
+          <p className="text-xs text-slate-500 uppercase tracking-widest mt-1">System Management & Queue Monitor (Debian VPS Optimized)</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="relative">
-            <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
             <input 
               type="text" 
               placeholder="Search channel or video..." 
@@ -230,7 +238,7 @@ export default function Dashboard({
           </div>
           <div className="px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl flex items-center gap-2">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-            <span className="text-[10px] font-bold text-slate-400 uppercase">Live Sync</span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase">Live Sync Active</span>
           </div>
         </div>
       </div>

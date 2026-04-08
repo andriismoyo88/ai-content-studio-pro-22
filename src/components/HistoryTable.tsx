@@ -61,6 +61,8 @@ export default function HistoryTable() {
 
   useEffect(() => {
     fetchHistory();
+    const interval = setInterval(fetchHistory, 10000);
+    return () => clearInterval(interval);
   }, [page, statusFilter]);
 
   // Debounce search
@@ -101,7 +103,13 @@ export default function HistoryTable() {
             <Folder className="w-6 h-6 text-amber-500 fill-amber-500/20" />
           </div>
           <div>
-            <h3 className="text-xl font-display font-bold text-white tracking-tight">History Log</h3>
+            <div className="flex items-center gap-3">
+              <h3 className="text-xl font-display font-bold text-white tracking-tight">History Log</h3>
+              <div className="px-2 py-0.5 bg-emerald-500/10 rounded-lg border border-emerald-500/20 flex items-center gap-1.5">
+                <div className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse" />
+                <span className="text-[8px] font-bold text-emerald-400 uppercase tracking-widest">Realtime Sync</span>
+              </div>
+            </div>
             <p className="text-[10px] text-slate-500 uppercase tracking-[0.2em] font-extrabold">Riwayat Pemrosesan Konten VOD</p>
           </div>
         </div>

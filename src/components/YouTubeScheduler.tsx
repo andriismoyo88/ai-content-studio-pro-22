@@ -564,9 +564,15 @@ export default function YouTubeScheduler({
                   <p className="text-sm text-slate-400 font-medium">Configure your video metadata and schedule</p>
                 </div>
               </div>
-              <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-slate-900/50 border border-slate-800 rounded-2xl backdrop-blur-md">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
-                <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Engine Active</span>
+              <div className="hidden sm:flex items-center gap-4">
+                <div className="px-3 py-1.5 bg-red-500/10 rounded-lg border border-red-500/20 flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
+                  <span className="text-[10px] font-bold text-red-400 uppercase tracking-widest">Realtime Sync Active</span>
+                </div>
+                <div className="flex items-center gap-2 px-4 py-2 bg-slate-900/50 border border-slate-800 rounded-2xl backdrop-blur-md">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
+                  <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Engine Active</span>
+                </div>
               </div>
             </div>
 
@@ -627,6 +633,10 @@ export default function YouTubeScheduler({
                     videoFile ? "bg-blue-500/5 border-blue-500/30 glow-blue" : "bg-slate-950/50 border-slate-800 hover:border-blue-500/40 hover:bg-blue-500/5"
                   }`}
                 >
+                  <div className="absolute top-3 right-3 px-2 py-0.5 bg-blue-500/10 rounded-lg border border-blue-500/20 flex items-center gap-1.5 z-20">
+                    <div className="w-1 h-1 bg-blue-500 rounded-full animate-pulse" />
+                    <span className="text-[7px] font-bold text-blue-400 uppercase tracking-widest">Realtime Upload</span>
+                  </div>
                   <input 
                     type="file" 
                     ref={videoInputRef} 
@@ -668,7 +678,7 @@ export default function YouTubeScheduler({
                       {uploadStatus === 'error' && (
                         <div className="absolute inset-0 bg-red-500/10 flex flex-col items-center justify-center p-4 z-10">
                           <XCircle className="w-8 h-8 text-red-500 mb-2" />
-                          <span className="text-[10px] font-bold text-red-500 uppercase text-center px-2">{uploadErrorMessage}</span>
+                          <span className="text-[10px] font-bold text-red-400 uppercase text-center px-2">{uploadErrorMessage}</span>
                           <button 
                             onClick={(e) => { e.stopPropagation(); setVideoFile(null); setUploadStatus('idle'); }}
                             className="text-[10px] text-slate-400 underline mt-2"
@@ -699,6 +709,10 @@ export default function YouTubeScheduler({
                     thumbnailFile ? "bg-purple-500/5 border-purple-500/30 glow-blue" : "bg-slate-950/50 border-slate-800 hover:border-purple-500/40 hover:bg-purple-500/5"
                   }`}
                 >
+                  <div className="absolute top-3 right-3 px-2 py-0.5 bg-purple-500/10 rounded-lg border border-purple-500/20 flex items-center gap-1.5 z-20">
+                    <div className="w-1 h-1 bg-purple-500 rounded-full animate-pulse" />
+                    <span className="text-[7px] font-bold text-purple-400 uppercase tracking-widest">Realtime Sync</span>
+                  </div>
                   <input 
                     type="file" 
                     ref={thumbnailInputRef} 

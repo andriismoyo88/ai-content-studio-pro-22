@@ -68,21 +68,28 @@ export default function StoryBoardPro({
     setModelType(globalConfig.defaultProvider);
   }, [globalConfig]);
 
-  const getApiKey = (type: "Gemini" | "OpenRouter" | "MaiaRouter" | "OpenAI") => {
-    const storageKey = 
-      type === "Gemini" ? "GEMINI_API_KEYS" : 
-      type === "OpenRouter" ? "OPENROUTER_API_KEYS" :
-      type === "MaiaRouter" ? "MAIAROUTER_API_KEYS" :
-      "OPENAI_API_KEYS";
-    const savedKeys = localStorage.getItem(storageKey);
-    if (savedKeys && savedKeys !== "undefined") {
+  const [apiKeys, setApiKeys] = useState<Record<string, any[]>>({});
+
+  useEffect(() => {
+    const fetchKeys = async () => {
       try {
-        const keys = JSON.parse(savedKeys);
-        if (keys.length > 0) return keys[0].key;
+        const res = await fetch("/api/config/keys");
+        if (res.ok) {
+          const data = await res.json();
+          setApiKeys(data);
+        }
       } catch (e) {
-        console.error("Error parsing keys:", e);
+        console.error("Error loading keys from server:", e);
       }
-    }
+    };
+    fetchKeys();
+    const interval = setInterval(fetchKeys, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const getApiKey = (type: "Gemini" | "OpenRouter" | "MaiaRouter" | "OpenAI") => {
+    const keys = apiKeys[type];
+    if (keys && keys.length > 0) return keys[0].key;
     return type === "Gemini" ? process.env.GEMINI_API_KEY : null;
   };
 

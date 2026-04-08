@@ -699,20 +699,31 @@ export default function MediaGallery() {
                   <div className="text-center">
                     <p className="text-slate-200 font-medium">{uploadFile ? uploadFile.name : "Pilih file video"}</p>
                     <p className="text-slate-500 text-xs mt-1">MP4, MKV, MOV, dll (Maksimal 100GB)</p>
+                    {uploadFile && (
+                      <p className="text-blue-400 text-[10px] font-bold mt-2 uppercase tracking-wider">
+                        Ukuran: {formatSize(uploadFile.size)}
+                      </p>
+                    )}
                   </div>
                 </div>
 
                 {isUploading && (
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-xs font-medium">
-                      <span className="text-slate-400">Mengupload...</span>
-                      <span className="text-blue-400">{uploadProgress}%</span>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-end">
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold text-blue-400 uppercase tracking-widest flex items-center gap-2">
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          Mengupload ke Server VPS...
+                        </span>
+                        <p className="text-[9px] text-slate-500">Jangan tutup halaman ini hingga proses selesai</p>
+                      </div>
+                      <span className="text-xl font-mono font-bold text-blue-400">{uploadProgress}%</span>
                     </div>
-                    <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                    <div className="h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-700 p-0.5">
                       <motion.div 
                         initial={{ width: 0 }}
                         animate={{ width: `${uploadProgress}%` }}
-                        className="h-full bg-blue-500"
+                        className="h-full bg-gradient-to-r from-blue-600 to-blue-400 rounded-full shadow-[0_0_15px_rgba(59,130,246,0.5)]"
                       />
                     </div>
                   </div>
