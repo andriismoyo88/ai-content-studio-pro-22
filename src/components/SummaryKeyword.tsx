@@ -47,10 +47,7 @@ export default function SummaryKeyword() {
 
   const getApiKey = (provider: ModelProvider) => {
     const keys = apiKeys[provider];
-    if (keys && keys.length > 0) return keys[0].key;
-    
-    // Fallback for Gemini if no key in localStorage
-    if (provider === "Gemini") return process.env.GEMINI_API_KEY;
+    if (keys && Array.isArray(keys) && keys.length > 0) return keys[0].key;
     return null;
   };
 
@@ -66,6 +63,17 @@ export default function SummaryKeyword() {
     if (!videoUrl.trim()) {
       setError("Silakan masukkan link YouTube terlebih dahulu.");
       return;
+    }
+
+    // Refresh keys before generation
+    try {
+      const res = await fetch("/api/config/keys");
+      if (res.ok) {
+        const data = await res.json();
+        setApiKeys(data);
+      }
+    } catch (e) {
+      console.error("Error refreshing keys:", e);
     }
 
     const apiKey = getApiKey(modelProvider);

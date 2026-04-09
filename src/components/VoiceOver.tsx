@@ -69,7 +69,25 @@ export default function VoiceOver({ audioResults, setAudioResults, generatedStor
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [error, setError] = useState("");
+  const [apiKeys, setApiKeys] = useState<Record<string, any>>({});
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Fetch keys from server
+  const fetchKeys = async () => {
+    try {
+      const res = await fetch("/api/config/keys");
+      if (res.ok) {
+        const data = await res.json();
+        setApiKeys(data);
+      }
+    } catch (e) {
+      console.error("Error loading keys from server:", e);
+    }
+  };
+
+  useEffect(() => {
+    fetchKeys();
+  }, []); // Fetch on mount
 
   // Persist text
   useEffect(() => {
@@ -96,25 +114,18 @@ export default function VoiceOver({ audioResults, setAudioResults, generatedStor
   };
 
   const getApiKey = (provider: "Gemini" | "OpenRouter" | "MaiaRouter" | "OpenAI") => {
-    const storageKey = 
-      provider === "Gemini" ? "GEMINI_API_KEYS" : 
-      provider === "OpenRouter" ? "OPENROUTER_API_KEYS" :
-      provider === "MaiaRouter" ? "MAIAROUTER_API_KEYS" :
-      "OPENAI_API_KEYS";
-    const savedKeys = localStorage.getItem(storageKey);
-    if (savedKeys && savedKeys !== "undefined") {
-      try {
-        const keys = JSON.parse(savedKeys);
-        if (keys.length > 0) return keys[0].key;
-      } catch (e) {
-        console.error("Error parsing keys:", e);
-      }
+    const providerKeys = apiKeys[provider];
+    if (providerKeys && Array.isArray(providerKeys) && providerKeys.length > 0) {
+      return providerKeys[0].key;
     }
-    return provider === "Gemini" ? process.env.GEMINI_API_KEY : null;
+    return null;
   };
 
   const generateVoice = async () => {
     if (!text.trim()) return;
+    
+    // Refresh keys before generation to ensure we have the latest
+    await fetchKeys();
     
     const apiKey = getApiKey(modelProvider);
     if (!apiKey) {

@@ -24,33 +24,25 @@ dotenv.config();
 const DEBUG = process.env.DEBUG === 'true';
 
 // Configure FFmpeg paths
-console.log("[System] ffmpegPath type:", typeof ffmpegPath, ffmpegPath);
-console.log("[System] ffprobePath type:", typeof ffprobePath, ffprobePath);
+const actualFfmpegPath = (ffmpegPath as any)?.default || (ffmpegPath as any)?.path || ffmpegPath;
+const actualFfprobePath = (ffprobePath as any)?.default || (ffprobePath as any)?.path || ffprobePath;
 
-if (ffmpegPath) {
-  const actualFfmpegPath = typeof ffmpegPath === 'string' ? ffmpegPath : (ffmpegPath as any).default;
-  if (typeof actualFfmpegPath === 'string') {
-    ffmpeg.setFfmpegPath(actualFfmpegPath);
-    console.log("[System] FFmpeg path set to:", actualFfmpegPath);
-  }
+if (typeof actualFfmpegPath === 'string') {
+  ffmpeg.setFfmpegPath(actualFfmpegPath);
+  console.log("[System] FFmpeg path set to:", actualFfmpegPath);
+} else {
+  console.warn("[System] Could not determine FFmpeg path. Static path was:", ffmpegPath);
 }
-if (ffprobePath) {
-  let actualFfprobePath: string | undefined;
-  if (typeof ffprobePath === 'string') {
-    actualFfprobePath = ffprobePath;
-  } else if (typeof (ffprobePath as any).path === 'string') {
-    actualFfprobePath = (ffprobePath as any).path;
-  } else if (typeof (ffprobePath as any).default === 'string') {
-    actualFfprobePath = (ffprobePath as any).default;
-  }
 
-  if (actualFfprobePath) {
-    ffmpeg.setFfprobePath(actualFfprobePath);
-    console.log("[System] FFprobe path set to:", actualFfprobePath);
-  } else {
-    console.warn("[System] Could not determine FFprobe path from:", ffprobePath);
-  }
+if (typeof actualFfprobePath === 'string') {
+  ffmpeg.setFfprobePath(actualFfprobePath);
+  console.log("[System] FFprobe path set to:", actualFfprobePath);
+} else {
+  console.warn("[System] Could not determine FFprobe path. Static path was:", ffprobePath);
 }
+
+console.log("[System] Final FFmpeg Path:", actualFfmpegPath);
+console.log("[System] Final FFprobe Path:", actualFfprobePath);
 
 // Ensure storage directories exist
 const BASE_DIR = process.cwd();
@@ -88,17 +80,23 @@ const ENCRYPTION_KEY = process.env.TOKEN_ENCRYPTION_KEY || "super-secret-key";
 // Helper: Resolve relative public paths to absolute filesystem paths
 function resolvePath(p: string): string {
   if (!p) return p;
-  if (path.isAbsolute(p)) return p;
   
-  // If it's a public URL path
+  // If it's a public URL path, resolve it to the local filesystem
   if (p.startsWith('/uploads/')) {
     return path.join(UPLOADS_DIR, path.basename(p));
   }
   if (p.startsWith('/storage/')) {
     // storage/videos or storage/thumbnails
     const parts = p.split('/');
-    return path.join(STORAGE_DIR, ...parts.slice(2));
+    // If it starts with /storage/, parts will be ["", "storage", "videos", "filename"]
+    if (parts[0] === "" && parts[1] === "storage") {
+      return path.join(STORAGE_DIR, ...parts.slice(2));
+    }
+    // If it starts with storage/, parts will be ["storage", "videos", "filename"]
+    return path.join(STORAGE_DIR, ...parts.slice(1));
   }
+
+  if (path.isAbsolute(p)) return p;
   
   // Fallback to joining with BASE_DIR if it's a relative path
   return path.join(BASE_DIR, p);
@@ -252,15 +250,46 @@ async function processMedia(mediaId: string, url?: string, source?: string) {
       if (source === 'drive') {
         const driveIdMatch = url.match(/\/file\/d\/([^\/]+)/) || url.match(/id=([^\&]+)/);
         if (driveIdMatch) {
-          // Add confirm=t for large files
-          downloadUrl = `https://drive.google.com/uc?export=download&id=${driveIdMatch[1]}&confirm=t`;
-          console.log(`[Media Processor] Converted Drive URL to: ${downloadUrl}`);
+          const driveId = driveIdMatch[1];
+          console.log(`[Media Processor] Detected Google Drive ID: ${driveId}`);
+          
+          try {
+            // First request to check for confirmation token (large files)
+            media.progress = 5; // Show some initial progress
+            saveDb();
+            
+            const checkUrl = `https://drive.google.com/uc?export=download&id=${driveId}`;
+            const checkRes = await axios.get(checkUrl, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+              },
+              timeout: 10000 // 10s timeout for check
+            });
+
+            if (typeof checkRes.data === 'string' && checkRes.data.includes('confirm=')) {
+              const confirmMatch = checkRes.data.match(/confirm=([a-zA-Z0-9_]+)/);
+              if (confirmMatch) {
+                downloadUrl = `${checkUrl}&confirm=${confirmMatch[1]}`;
+                console.log(`[Media Processor] Found Drive confirmation token, updated URL`);
+              }
+            } else {
+              downloadUrl = checkUrl;
+            }
+            media.progress = 10;
+            saveDb();
+          } catch (e) {
+            console.warn(`[Media Processor] Drive check failed, falling back to direct download:`, e.message);
+            downloadUrl = `https://drive.google.com/uc?export=download&id=${driveId}&confirm=t`;
+          }
         }
       }
 
       if (source === 'youtube') {
         try {
-          const stream = ytdl(url, { quality: 'highestvideo' });
+          const stream = ytdl(url, { 
+            quality: 'highest',
+            filter: 'audioandvideo'
+          });
           const writeStream = fs.createWriteStream(videoPath);
           
           let totalSize = 0;
@@ -305,6 +334,11 @@ async function processMedia(mediaId: string, url?: string, source?: string) {
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
             }
           });
+
+          const contentType = response.headers['content-type'] || '';
+          if (contentType.includes('text/html')) {
+            throw new Error("Downloaded content is HTML, not a video. This usually happens with Google Drive virus scan warnings or expired links.");
+          }
 
           const totalSize = parseInt(response.headers['content-length'] || '0');
           let downloaded = 0;
@@ -373,26 +407,37 @@ async function processMedia(mediaId: string, url?: string, source?: string) {
           .on('end', () => {
             console.log(`[Media Processor] FFmpeg screenshots generated for ${mediaId}`);
             
-            // Wait a tiny bit to ensure file handles are released if any
+            // Wait a bit to ensure file handles are released and filesystem is synced
             setTimeout(() => {
-              ffmpeg.ffprobe(videoPath, (err, metadata) => {
-                if (err) {
-                  console.error(`[Media Processor] ffprobe error for ${mediaId}:`, err);
-                  media.status = 'failed';
-                  media.error = `ffprobe error: ${err.message}`;
-                  saveDb();
-                  reject(err);
-                } else {
-                  media.duration = metadata.format.duration || 0;
-                  media.size = stats.size;
-                  media.status = 'ready';
-                  media.progress = 100;
-                  media.thumbnail = `/api/media/thumbnail/${mediaId}`;
-                  saveDb();
-                  resolve(true);
-                }
-              });
-            }, 500);
+              const runFfprobe = (retries = 3) => {
+                ffmpeg(videoPath).ffprobe((err, metadata) => {
+                  if (err) {
+                    if (retries > 0) {
+                      console.warn(`[Media Processor] ffprobe failed for ${mediaId}, retrying in 1s... (${retries} retries left)`);
+                      setTimeout(() => runFfprobe(retries - 1), 1000);
+                      return;
+                    }
+                    console.error(`[Media Processor] ffprobe error for ${mediaId}:`, err.message);
+                    if (err.message.includes('code 1')) {
+                      console.error(`[Media Processor] ffprobe failed with code 1. This often means the file is corrupted or the format is unsupported.`);
+                    }
+                    media.status = 'failed';
+                    media.error = `ffprobe error: ${err.message}`;
+                    saveDb();
+                    reject(err);
+                  } else {
+                    media.duration = metadata.format.duration || 0;
+                    media.size = stats.size;
+                    media.status = 'ready';
+                    media.progress = 100;
+                    media.thumbnail = `/api/media/thumbnail/${mediaId}`;
+                    saveDb();
+                    resolve(true);
+                  }
+                });
+              };
+              runFfprobe();
+            }, 1000);
           })
           .on('error', (err, stdout, stderr) => {
             console.error(`[Media Processor] FFmpeg error for ${mediaId}:`, err.message);
@@ -615,8 +660,8 @@ async function processJob(job: any) {
 
     // Cleanup local files after successful upload
     try {
-      if (fs.existsSync(data.videoPath)) fs.unlinkSync(data.videoPath);
-      if (data.thumbnailPath && fs.existsSync(data.thumbnailPath)) fs.unlinkSync(data.thumbnailPath);
+      if (fs.existsSync(absoluteVideoPath)) fs.unlinkSync(absoluteVideoPath);
+      if (absoluteThumbnailPath && fs.existsSync(absoluteThumbnailPath)) fs.unlinkSync(absoluteThumbnailPath);
     } catch (e) {
       console.warn("Failed to cleanup files:", e);
     }
@@ -1148,6 +1193,7 @@ async function startServer() {
       id,
       filename: filename || `Video_${id.substring(0, 8)}`,
       path: path.join(VIDEOS_DIR, `${id}.mp4`),
+      url, // Store the URL for retry
       size: 0,
       duration: 0,
       thumbnail: "",
@@ -1238,6 +1284,28 @@ async function startServer() {
     if (filename) media.filename = filename;
     saveDb();
     res.json(media);
+  });
+
+  app.post("/api/media/retry/:id", (req, res) => {
+    const { id } = req.params;
+    const media = db.media.find(m => m.id === id);
+    if (!media) return res.status(404).json({ error: "Media not found" });
+
+    // Reset media state
+    media.status = 'processing';
+    media.progress = 0;
+    media.error = undefined;
+    saveDb();
+
+    // Find the original URL if possible (we might need to store it in db.json)
+    // For now, we assume the URL is available or the user will re-process.
+    // Actually, we should have stored the URL in the media object.
+    if (media.url) {
+      processMedia(media.id, media.url, media.source);
+      res.json({ success: true, message: "Retry started" });
+    } else {
+      res.status(400).json({ error: "Original URL not found for this media" });
+    }
   });
 
   app.delete("/api/media/:id", (req, res) => {

@@ -89,14 +89,31 @@ export default function StoryBoardPro({
 
   const getApiKey = (type: "Gemini" | "OpenRouter" | "MaiaRouter" | "OpenAI") => {
     const keys = apiKeys[type];
-    if (keys && keys.length > 0) return keys[0].key;
-    return type === "Gemini" ? process.env.GEMINI_API_KEY : null;
+    if (keys && Array.isArray(keys) && keys.length > 0) return keys[0].key;
+    return null;
   };
 
   const generateStoryboard = async () => {
     if (!story) {
       setError("Please enter a story first.");
       return;
+    }
+
+    // Refresh keys before generation
+    try {
+      const res = await fetch("/api/config/keys");
+      if (res.ok) {
+        const data = await res.json();
+        setApiKeys(data);
+        
+        const apiKey = data[modelType]?.[0]?.key;
+        if (!apiKey) {
+          setError(`No ${modelType} API Key found. Please add one in Configuration.`);
+          return;
+        }
+      }
+    } catch (e) {
+      console.error("Error refreshing keys:", e);
     }
 
     const apiKey = getApiKey(modelType);

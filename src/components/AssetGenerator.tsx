@@ -176,11 +176,7 @@ export default function AssetGenerator({ globalConfig, generatedStoryboard, gene
 
   const getApiKey = (provider: "Gemini" | "OpenRouter" | "MaiaRouter" | "OpenAI") => {
     const keys = apiKeys[provider];
-    if (keys && keys.length > 0) return keys[0].key;
-    
-    if (provider === "Gemini") {
-      return (process.env as any).API_KEY || process.env.GEMINI_API_KEY;
-    }
+    if (keys && Array.isArray(keys) && keys.length > 0) return keys[0].key;
     return null;
   };
 
@@ -259,6 +255,17 @@ export default function AssetGenerator({ globalConfig, generatedStoryboard, gene
     if (promptLines.length === 0) {
       setError("Please enter at least one prompt.");
       return;
+    }
+
+    // Refresh keys before generation
+    try {
+      const res = await fetch("/api/config/keys");
+      if (res.ok) {
+        const data = await res.json();
+        setApiKeys(data);
+      }
+    } catch (e) {
+      console.error("Error refreshing keys:", e);
     }
 
     // Ensure API Key for Gemini Preview models

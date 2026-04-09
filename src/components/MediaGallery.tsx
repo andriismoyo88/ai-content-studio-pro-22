@@ -191,6 +191,15 @@ export default function MediaGallery() {
     }
   };
 
+  const handleRetry = async (id: string) => {
+    try {
+      await axios.post(`/api/media/retry/${id}`);
+      fetchVideos();
+    } catch (err) {
+      console.error("Retry failed", err);
+    }
+  };
+
   const copyLink = (id: string) => {
     const url = `${window.location.origin}/api/media/stream/${id}`;
     navigator.clipboard.writeText(url);
@@ -362,15 +371,26 @@ export default function MediaGallery() {
                               {video.error}
                             </p>
                           )}
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDeleteConfirmId(video.id);
-                            }}
-                            className="mt-2 px-3 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 text-[10px] font-bold rounded-lg border border-red-500/30 transition-all"
-                          >
-                            Hapus
-                          </button>
+                          <div className="flex items-center gap-2 mt-2">
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRetry(video.id);
+                             }}
+                              className="px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 text-[10px] font-bold rounded-lg border border-blue-500/30 transition-all"
+                            >
+                              Retry
+                            </button>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteConfirmId(video.id);
+                              }}
+                              className="px-3 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 text-[10px] font-bold rounded-lg border border-red-500/30 transition-all"
+                            >
+                              Hapus
+                            </button>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -510,6 +530,14 @@ export default function MediaGallery() {
                   <span>{formatSize(video.size)}</span>
                   <span className="w-1 h-1 bg-slate-700 rounded-full" />
                   <span>{video.status === "ready" ? formatDuration(video.duration) : video.status}</span>
+                  {video.status === "failed" && (
+                    <button 
+                      onClick={() => handleRetry(video.id)}
+                      className="ml-2 text-blue-400 hover:underline"
+                    >
+                      Retry
+                    </button>
+                  )}
                   <span className="w-1 h-1 bg-slate-700 rounded-full" />
                   <span>{format(new Date(video.createdAt), "dd MMM yyyy")}</span>
                 </div>
